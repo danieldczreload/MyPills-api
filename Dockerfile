@@ -29,6 +29,7 @@ RUN <<-EOF
 		opcache \
 		pdo_pgsql \
 		redis \
+		sodium \
 		zip
 	rm -rf /var/lib/apt/lists/*
 EOF
