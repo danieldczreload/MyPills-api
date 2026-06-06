@@ -1,0 +1,82 @@
+doctrine:
+    dbal:
+        url: '%env(resolve:DATABASE_URL)%'
+
+        # IMPORTANT: You MUST configure your server version,
+        # either here or in the DATABASE_URL env var (see .env file)
+        server_version: '16'
+
+        profiling_collect_backtrace: '%kernel.debug%'
+    orm:
+        validate_xml_mapping: true
+        naming_strategy: doctrine.orm.naming_strategy.underscore
+        identity_generation_preferences:
+            Doctrine\DBAL\Platforms\PostgreSQLPlatform: identity
+        auto_mapping: true
+        mappings:
+            Identity:
+                type: attribute
+                is_bundle: false
+                dir: '%kernel.project_dir%/src/Identity/Infrastructure/Persistence'
+                prefix: 'Identity\Infrastructure\Persistence'
+                alias: Identity
+            Profile:
+                type: attribute
+                is_bundle: false
+                dir: '%kernel.project_dir%/src/Profile/Infrastructure/Persistence'
+                prefix: 'Profile\Infrastructure\Persistence'
+                alias: Profile
+            Medication:
+                type: attribute
+                is_bundle: false
+                dir: '%kernel.project_dir%/src/Medication/Infrastructure/Persistence'
+                prefix: 'Medication\Infrastructure\Persistence'
+                alias: Medication
+            Schedule:
+                type: attribute
+                is_bundle: false
+                dir: '%kernel.project_dir%/src/Schedule/Infrastructure/Persistence'
+                prefix: 'Schedule\Infrastructure\Persistence'
+                alias: Schedule
+            DoseEvent:
+                type: attribute
+                is_bundle: false
+                dir: '%kernel.project_dir%/src/DoseEvent/Infrastructure/Persistence'
+                prefix: 'DoseEvent\Infrastructure\Persistence'
+                alias: DoseEvent
+            Notification:
+                type: attribute
+                is_bundle: false
+                dir: '%kernel.project_dir%/src/Notification/Infrastructure/Persistence'
+                prefix: 'Notification\Infrastructure\Persistence'
+                alias: Notification
+            CalendarIntegration:
+                type: attribute
+                is_bundle: false
+                dir: '%kernel.project_dir%/src/CalendarIntegration/Infrastructure/Persistence'
+                prefix: 'CalendarIntegration\Infrastructure\Persistence'
+                alias: CalendarIntegration
+
+when@test:
+    doctrine:
+        dbal:
+            # "TEST_TOKEN" is typically set by ParaTest
+            dbname_suffix: '_test%env(default::TEST_TOKEN)%'
+
+when@prod:
+    doctrine:
+        orm:
+            query_cache_driver:
+                type: pool
+                pool: doctrine.system_cache_pool
+            result_cache_driver:
+                type: pool
+                pool: doctrine.result_cache_pool
+
+    framework:
+        cache:
+            pools:
+                doctrine.result_cache_pool:
+                    adapter: cache.app
+                doctrine.system_cache_pool:
+                    adapter: cache.system

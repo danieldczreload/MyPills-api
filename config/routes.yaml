@@ -7,5 +7,8 @@
 # To list all registered routes, run the following command:
 #   bin/console debug:router
 
-controllers:
-    resource: routing.controllers
+api_controllers:
+    resource: '../src/'
+    type:     attribute
+    exclude:
+        - '../src/Kernel.php'

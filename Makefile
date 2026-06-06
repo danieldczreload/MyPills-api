@@ -24,7 +24,7 @@ reset-db: ## Drop and recreate database
 	docker compose exec php bin/console doctrine:migrations:migrate --no-interaction
 
 test: ## Run PHPUnit tests
-	docker compose exec php bin/phpunit
+	docker compose exec php vendor/bin/simple-phpunit
 
 migrate: ## Run database migrations
 	docker compose exec php bin/console doctrine:migrations:migrate --no-interaction
@@ -33,4 +33,4 @@ cs: ## Run PHP CS Fixer
 	docker compose exec php vendor/bin/php-cs-fixer fix --dry-run --diff
 
 stan: ## Run PHPStan
-	docker compose exec php vendor/bin/phpstan analyse
+	docker compose exec php vendor/bin/phpstan analyse --memory-limit=-1

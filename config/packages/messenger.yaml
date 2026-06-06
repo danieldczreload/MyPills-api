@@ -1,0 +1,33 @@
+framework:
+    messenger:
+        default_bus: command.bus
+
+        buses:
+            command.bus:
+                middleware:
+                    - validation
+            query.bus:
+                middleware:
+                    - validation
+            event.bus:
+                default_middleware: { allow_no_handlers: true }
+
+        transports:
+            command.sync: 'sync://'
+            query.sync: 'sync://'
+            event.async:
+                dsn: '%env(MESSENGER_TRANSPORT_DSN)%'
+                options:
+                    queue_name: async
+                    use_notify: true
+                    check_delayed_interval: 60000
+
+        routing:
+            # Route events to async transport by default
+            'Shared\Domain\DomainEvent': event.async
+
+when@test:
+    framework:
+        messenger:
+            transports:
+                event.async: 'sync://'
