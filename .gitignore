@@ -14,3 +14,4 @@
 /.php-cs-fixer.cache
 ###< friendsofphp/php-cs-fixer ###
 .antigravitycli/
+/.phpunit.result.cache
