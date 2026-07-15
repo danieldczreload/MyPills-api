@@ -30,11 +30,13 @@ final class Result
     }
 
     /**
-     * @return Result<null>
+     * @return Result<never>
      */
     public static function failure(Failure $failure): self
     {
-        return new self(false, null, $failure);
+        /** @var Result<never> $result */
+        $result = new self(false, null, $failure);
+        return $result;
     }
 
     public function isSuccess(): bool

@@ -8,6 +8,8 @@ use Shared\Application\Bus\CommandBus;
 use Shared\Application\Bus\QueryBus;
 use Shared\Domain\Failure;
 use Shared\Domain\Result;
+use Shared\Infrastructure\Security\CurrentUserContext;
+use Shared\Domain\ValueObject\UserId;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -18,8 +20,18 @@ abstract class ApiController extends AbstractController
     public function __construct(
         protected readonly CommandBus $commandBus,
         protected readonly QueryBus $queryBus,
+        protected readonly CurrentUserContext $currentUserContext,
         #[Autowire('%kernel.environment%')] protected readonly string $env = 'prod'
     ) {
+    }
+
+    protected function getAuthenticatedUserId(): UserId
+    {
+        $userId = $this->currentUserContext->getUserId();
+        if ($userId === null) {
+            throw new \LogicException('No authenticated user found.');
+        }
+        return $userId;
     }
 
     /**

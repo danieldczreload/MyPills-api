@@ -27,6 +27,10 @@ services:
             - '../src/Shared/Domain/'
             - '../src/Shared/Infrastructure/Kernel/'
 
+    Shared\Infrastructure\Security\JwtService:
+        arguments:
+            $secret: '%kernel.secret%'
+
     Identity\:
         resource: '../src/Identity/'
         exclude:
@@ -64,3 +68,21 @@ services:
 
     # add more service definitions when explicit configuration is needed
     # please note that last definitions always *replace* previous ones
+
+    Identity\Domain\AccountRepository: '@Identity\Infrastructure\Persistence\DoctrineAccountRepository'
+    Identity\Domain\RefreshTokenRepository: '@Identity\Infrastructure\Persistence\DoctrineRefreshTokenRepository'
+    Identity\Domain\GoogleIdentityProvider: '@Identity\Infrastructure\Security\FakeGoogleIdentityProvider'
+    Identity\Domain\MicrosoftIdentityProvider: '@Identity\Infrastructure\Security\FakeMicrosoftIdentityProvider'
+    Profile\Domain\ProfileRepository: '@Profile\Infrastructure\Persistence\DoctrineProfileRepository'
+    Profile\Domain\TombstoneRepository: '@Profile\Infrastructure\Persistence\DoctrineTombstoneRepository'
+    Medication\Domain\MedicationRepository: '@Medication\Infrastructure\Persistence\DoctrineMedicationRepository'
+    Schedule\Domain\ScheduleRepository: '@Schedule\Infrastructure\Persistence\DoctrineScheduleRepository'
+    DoseEvent\Domain\DoseEventRepository: '@DoseEvent\Infrastructure\Persistence\DoctrineDoseEventRepository'
+    DoseEvent\Domain\DoseEventExpander: ~
+    Notification\Domain\DeviceTokenRepository: '@Notification\Infrastructure\Persistence\DoctrineDeviceTokenRepository'
+    Notification\Domain\NotificationPreferencesRepository: '@Notification\Infrastructure\Persistence\DoctrineNotificationPreferencesRepository'
+    Notification\Domain\PushNotificationGateway: '@Notification\Infrastructure\LoggerPushNotificationGateway'
+    CalendarIntegration\Domain\CalendarLinkRepository: '@CalendarIntegration\Infrastructure\Persistence\DoctrineCalendarLinkRepository'
+    CalendarIntegration\Domain\CalendarEventMappingRepository: '@CalendarIntegration\Infrastructure\Persistence\DoctrineCalendarEventMappingRepository'
+    CalendarIntegration\Infrastructure\LoggerGoogleCalendarGateway: ~
+    CalendarIntegration\Infrastructure\LoggerMicrosoftCalendarGateway: ~

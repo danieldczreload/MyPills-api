@@ -12,21 +12,24 @@ use Shared\UI\Http\ApiController;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Response;
+use Shared\Infrastructure\Security\CurrentUserContext;
 
 final class ApiControllerTest extends KernelTestCase
 {
     private CommandBus $commandBus;
     private QueryBus $queryBus;
+    private CurrentUserContext $currentUserContext;
 
     protected function setUp(): void
     {
         $this->commandBus = $this->createMock(CommandBus::class);
         $this->queryBus = $this->createMock(QueryBus::class);
+        $this->currentUserContext = new CurrentUserContext();
     }
 
     public function testRespondSuccess(): void
     {
-        $controller = new class ($this->commandBus, $this->queryBus) extends ApiController {
+        $controller = new class ($this->commandBus, $this->queryBus, $this->currentUserContext) extends ApiController {
             /**
              * @template T
              * @param Result<T> $result
@@ -50,7 +53,7 @@ final class ApiControllerTest extends KernelTestCase
      */
     public function testRespondWithFailure(Failure $failure, int $expectedStatusCode, string $expectedType, string $expectedMessage, array $expectedDetails): void
     {
-        $controller = new class ($this->commandBus, $this->queryBus) extends ApiController {
+        $controller = new class ($this->commandBus, $this->queryBus, $this->currentUserContext) extends ApiController {
             public function testRespondFailure(Failure $failure): JsonResponse
             {
                 return $this->respondWithFailure($failure);
@@ -125,7 +128,7 @@ final class ApiControllerTest extends KernelTestCase
 
     public function testServerErrorRedactionInProd(): void
     {
-        $controller = new class ($this->commandBus, $this->queryBus, 'prod') extends ApiController {
+        $controller = new class ($this->commandBus, $this->queryBus, $this->currentUserContext, 'prod') extends ApiController {
             public function testRespondFailure(Failure $failure): JsonResponse
             {
                 return $this->respondWithFailure($failure);
@@ -150,7 +153,7 @@ final class ApiControllerTest extends KernelTestCase
 
     public function testServerErrorNoRedactionInDev(): void
     {
-        $controller = new class ($this->commandBus, $this->queryBus, 'dev') extends ApiController {
+        $controller = new class ($this->commandBus, $this->queryBus, $this->currentUserContext, 'dev') extends ApiController {
             public function testRespondFailure(Failure $failure): JsonResponse
             {
                 return $this->respondWithFailure($failure);
