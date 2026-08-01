@@ -7,6 +7,13 @@
 # Put parameters here that don't need to change on each machine where the app is deployed
 # https://symfony.com/doc/current/best_practices.html#use-parameters-for-application-configuration
 parameters:
+    google.client_id: '%env(default::GOOGLE_CLIENT_ID)%'
+    google.client_secret: '%env(default::GOOGLE_CLIENT_SECRET)%'
+    microsoft.client_id: '%env(default::MICROSOFT_CLIENT_ID)%'
+    microsoft.client_secret: '%env(default::MICROSOFT_CLIENT_SECRET)%'
+    microsoft.tenant_id: '%env(default:common:MICROSOFT_TENANT_ID)%'
+    fcm.server_key: '%env(default::FCM_SERVER_KEY)%'
+    fcm.project_id: '%env(default::FCM_PROJECT_ID)%'
 
 services:
     # default configuration for services in *this* file
@@ -71,8 +78,8 @@ services:
 
     Identity\Domain\AccountRepository: '@Identity\Infrastructure\Persistence\DoctrineAccountRepository'
     Identity\Domain\RefreshTokenRepository: '@Identity\Infrastructure\Persistence\DoctrineRefreshTokenRepository'
-    Identity\Domain\GoogleIdentityProvider: '@Identity\Infrastructure\Security\FakeGoogleIdentityProvider'
-    Identity\Domain\MicrosoftIdentityProvider: '@Identity\Infrastructure\Security\FakeMicrosoftIdentityProvider'
+    Identity\Domain\GoogleIdentityProvider: '@Identity\Infrastructure\Security\HttpGoogleIdentityProvider'
+    Identity\Domain\MicrosoftIdentityProvider: '@Identity\Infrastructure\Security\HttpMicrosoftIdentityProvider'
     Profile\Domain\ProfileRepository: '@Profile\Infrastructure\Persistence\DoctrineProfileRepository'
     Profile\Domain\TombstoneRepository: '@Profile\Infrastructure\Persistence\DoctrineTombstoneRepository'
     Medication\Domain\MedicationRepository: '@Medication\Infrastructure\Persistence\DoctrineMedicationRepository'
@@ -81,8 +88,29 @@ services:
     DoseEvent\Domain\DoseEventExpander: ~
     Notification\Domain\DeviceTokenRepository: '@Notification\Infrastructure\Persistence\DoctrineDeviceTokenRepository'
     Notification\Domain\NotificationPreferencesRepository: '@Notification\Infrastructure\Persistence\DoctrineNotificationPreferencesRepository'
-    Notification\Domain\PushNotificationGateway: '@Notification\Infrastructure\LoggerPushNotificationGateway'
+    Notification\Domain\PushNotificationGateway: '@Notification\Infrastructure\FcmPushNotificationGateway'
     CalendarIntegration\Domain\CalendarLinkRepository: '@CalendarIntegration\Infrastructure\Persistence\DoctrineCalendarLinkRepository'
     CalendarIntegration\Domain\CalendarEventMappingRepository: '@CalendarIntegration\Infrastructure\Persistence\DoctrineCalendarEventMappingRepository'
-    CalendarIntegration\Infrastructure\LoggerGoogleCalendarGateway: ~
-    CalendarIntegration\Infrastructure\LoggerMicrosoftCalendarGateway: ~
+
+    Identity\Infrastructure\Security\HttpGoogleIdentityProvider:
+        arguments:
+            $clientId: '%google.client_id%'
+
+    Identity\Infrastructure\Security\HttpMicrosoftIdentityProvider: ~
+
+    CalendarIntegration\Infrastructure\GoogleCalendarGateway:
+        arguments:
+            $clientId: '%google.client_id%'
+            $clientSecret: '%google.client_secret%'
+
+    CalendarIntegration\Infrastructure\MicrosoftCalendarGateway:
+        arguments:
+            $clientId: '%microsoft.client_id%'
+            $clientSecret: '%microsoft.client_secret%'
+            $tenantId: '%microsoft.tenant_id%'
+
+    Notification\Infrastructure\FcmPushNotificationGateway:
+        arguments:
+            $serverKey: '%fcm.server_key%'
+            $projectId: '%fcm.project_id%'
+

@@ -36,7 +36,7 @@ services:
         protocol: udp
 
   database:
-    image: postgres:${POSTGRES_VERSION:-16}-alpine
+    image: docker.io/library/postgres:${POSTGRES_VERSION:-16}-alpine
     restart: unless-stopped
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-app}
@@ -51,7 +51,7 @@ services:
       start_period: 60s
 
   mailpit:
-    image: axllent/mailpit:latest
+    image: docker.io/axllent/mailpit:latest
     restart: unless-stopped
     ports:
       - target: 1025

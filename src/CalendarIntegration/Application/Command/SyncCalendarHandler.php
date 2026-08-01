@@ -28,9 +28,9 @@ final class SyncCalendarHandler
         private readonly MedicationRepository $medicationRepository,
         private readonly ScheduleRepository $scheduleRepository,
         private readonly DoseEventRepository $doseEventRepository,
-        #[Autowire(service: 'CalendarIntegration\Infrastructure\LoggerGoogleCalendarGateway')]
+        #[Autowire(service: 'CalendarIntegration\Infrastructure\GoogleCalendarGateway')]
         private readonly CalendarGateway $googleGateway,
-        #[Autowire(service: 'CalendarIntegration\Infrastructure\LoggerMicrosoftCalendarGateway')]
+        #[Autowire(service: 'CalendarIntegration\Infrastructure\MicrosoftCalendarGateway')]
         private readonly CalendarGateway $microsoftGateway
     ) {
     }

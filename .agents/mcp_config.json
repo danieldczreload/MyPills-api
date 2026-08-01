@@ -1,8 +1,3 @@
 {
-  "mcpServers": {
-    "headroom": {
-      "command": "/usr/local/bin/headroom",
-      "args": ["mcp", "serve"]
-    }
-  }
+  "mcpServers": {}
 }
