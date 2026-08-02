@@ -15,3 +15,14 @@
 ###< friendsofphp/php-cs-fixer ###
 .antigravitycli/
 /.phpunit.result.cache
+/.phpunit.cache/
+
+###> Local tooling ###
+/.serena/
+
+###> IDE / OS ###
+/.idea/
+/.vscode/
+*.code-workspace
+.DS_Store
+Thumbs.db
