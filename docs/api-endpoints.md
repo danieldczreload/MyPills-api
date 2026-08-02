@@ -20,6 +20,8 @@
 
 ## Health
 
+> Ruta raíz — **sin** prefijo `/api/v1`.
+
 | Método | Path | Auth | Descripción |
 |--------|------|------|-------------|
 | `GET` | `/health` | ❌ | Healthcheck del servidor |
@@ -160,7 +162,7 @@ Los campos varían según `type`:
 ```
 
 > `endDate` y `clientId` son opcionales.
-> `daysOfWeek`: `1` = Lunes … `7` = Domingo.
+> `daysOfWeek`: `1` = Lunes … `7` = Domingo (ISO-8601, convención; el dominio valida rango 1-7).
 
 ---
 
