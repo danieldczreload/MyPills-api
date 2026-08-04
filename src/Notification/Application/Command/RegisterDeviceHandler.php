@@ -28,13 +28,29 @@ final class RegisterDeviceHandler
             return Result::failure(Failure::validation('fcmToken cannot be empty.'));
         }
 
+        if (strlen($command->fcmToken) > 4096 || preg_match('/[\x00-\x1F\x7F]/', $command->fcmToken) === 1) {
+            return Result::failure(Failure::validation('fcmToken has an invalid length or format.'));
+        }
+
+        if (!in_array($command->platform, ['android', 'ios'], true)) {
+            return Result::failure(Failure::validation('platform must be android or ios.'));
+        }
+
+        if (!preg_match('/^[a-z]{2}(?:-[A-Z]{2})?$/', $command->locale)) {
+            return Result::failure(Failure::validation('locale must use a valid locale such as es-MX.'));
+        }
+
         $existing = $this->deviceTokenRepository->findByToken($command->fcmToken);
 
         if ($existing !== null) {
             if ($existing->accountId()->value() === $command->accountId) {
+                if ($existing->platform() !== $command->platform || $existing->locale() !== $command->locale) {
+                    $existing->updateMetadata($command->platform, $command->locale);
+                    $this->deviceTokenRepository->save($existing);
+                }
+
                 return Result::success([
                     'id' => $existing->id(),
-                    'token' => $existing->token(),
                     'platform' => $existing->platform(),
                     'locale' => $existing->locale(),
                 ]);
@@ -53,7 +69,6 @@ final class RegisterDeviceHandler
 
         return Result::success([
             'id' => $deviceToken->id(),
-            'token' => $deviceToken->token(),
             'platform' => $deviceToken->platform(),
             'locale' => $deviceToken->locale(),
         ]);

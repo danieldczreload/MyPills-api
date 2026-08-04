@@ -17,8 +17,11 @@ class DeviceTokenDoctrineEntity
     #[ORM\Column(type: 'string', length: 36)]
     private string $accountId;
 
-    #[ORM\Column(type: 'string', length: 1000, unique: true)]
+    #[ORM\Column(type: 'text')]
     private string $token;
+
+    #[ORM\Column(type: 'string', length: 64, unique: true)]
+    private string $tokenHash;
 
     #[ORM\Column(type: 'string', length: 50)]
     private string $platform;
@@ -33,6 +36,7 @@ class DeviceTokenDoctrineEntity
         string $id,
         string $accountId,
         string $token,
+        string $tokenHash,
         string $platform,
         string $locale,
         \DateTimeImmutable $createdAt
@@ -40,6 +44,7 @@ class DeviceTokenDoctrineEntity
         $this->id = $id;
         $this->accountId = $accountId;
         $this->token = $token;
+        $this->tokenHash = $tokenHash;
         $this->platform = $platform;
         $this->locale = $locale;
         $this->createdAt = $createdAt;
@@ -60,6 +65,21 @@ class DeviceTokenDoctrineEntity
         return $this->token;
     }
 
+    public function getTokenHash(): string
+    {
+        return $this->tokenHash;
+    }
+
+    public function setToken(string $token): void
+    {
+        $this->token = $token;
+    }
+
+    public function setTokenHash(string $tokenHash): void
+    {
+        $this->tokenHash = $tokenHash;
+    }
+
     public function getPlatform(): string
     {
         return $this->platform;
@@ -68,6 +88,16 @@ class DeviceTokenDoctrineEntity
     public function getLocale(): string
     {
         return $this->locale;
+    }
+
+    public function setPlatform(string $platform): void
+    {
+        $this->platform = $platform;
+    }
+
+    public function setLocale(string $locale): void
+    {
+        $this->locale = $locale;
     }
 
     public function getCreatedAt(): \DateTimeImmutable

@@ -16,12 +16,10 @@ final class LoggerPushNotificationGateway implements PushNotificationGateway
 
     public function send(string $token, string $title, string $body, array $data = []): void
     {
-        $this->logger->info(sprintf(
-            'Push notification sent to token "%s": Title: "%s", Body: "%s", Data: %s',
-            $token,
-            $title,
-            $body,
-            json_encode($data)
-        ));
+        $fingerprint = substr(hash('sha256', $token), 0, 12);
+        $this->logger->info('Push notification dispatched.', [
+            'tokenFingerprint' => $fingerprint,
+            'dataKeys' => array_keys($data),
+        ]);
     }
 }

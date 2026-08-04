@@ -24,6 +24,9 @@ class CalendarLinkDoctrineEntity
     #[ORM\Column(type: 'text')]
     private string $refreshToken;
 
+    #[ORM\Column(type: 'string', length: 30, options: ['default' => 'active'])]
+    private string $status;
+
     #[ORM\Column(type: 'datetime_immutable')]
     private \DateTimeImmutable $createdAt;
 
@@ -36,12 +39,14 @@ class CalendarLinkDoctrineEntity
         string $provider,
         string $refreshToken,
         \DateTimeImmutable $createdAt,
-        \DateTimeImmutable $updatedAt
+        \DateTimeImmutable $updatedAt,
+        string $status = 'active'
     ) {
         $this->id = $id;
         $this->profileId = $profileId;
         $this->provider = $provider;
         $this->refreshToken = $refreshToken;
+        $this->status = $status;
         $this->createdAt = $createdAt;
         $this->updatedAt = $updatedAt;
     }
@@ -69,6 +74,16 @@ class CalendarLinkDoctrineEntity
     public function setRefreshToken(string $refreshToken): void
     {
         $this->refreshToken = $refreshToken;
+    }
+
+    public function getStatus(): string
+    {
+        return $this->status;
+    }
+
+    public function setStatus(string $status): void
+    {
+        $this->status = $status;
     }
 
     public function getCreatedAt(): \DateTimeImmutable

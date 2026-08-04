@@ -22,7 +22,7 @@ final class DeregisterDeviceHandler
      */
     public function __invoke(DeregisterDeviceCommand $command): Result
     {
-        $deviceToken = $this->deviceTokenRepository->findByToken($command->token);
+        $deviceToken = $this->deviceTokenRepository->findById($command->deviceId);
 
         if ($deviceToken === null) {
             return Result::failure(Failure::notFound('Device token not found.'));

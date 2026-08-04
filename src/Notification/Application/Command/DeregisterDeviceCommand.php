@@ -7,7 +7,7 @@ namespace Notification\Application\Command;
 final class DeregisterDeviceCommand
 {
     public function __construct(
-        public readonly string $token,
+        public readonly string $deviceId,
         public readonly string $accountId
     ) {
     }

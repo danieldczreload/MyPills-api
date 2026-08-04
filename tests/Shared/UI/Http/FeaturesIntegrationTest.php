@@ -10,6 +10,9 @@ use Symfony\Component\HttpFoundation\Response;
 
 final class FeaturesIntegrationTest extends WebTestCase
 {
+    /**
+     * @return array<string, string>
+     */
     private function createAuthHeaders(string $userId): array
     {
         /** @var JwtService $jwtService */
@@ -21,11 +24,67 @@ final class FeaturesIntegrationTest extends WebTestCase
         ];
     }
 
+    /**
+     * @param array<string, mixed> $payload
+     */
+    private function encode(array $payload): string
+    {
+        return json_encode($payload, JSON_THROW_ON_ERROR);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function decodeResponse(string|false $content): array
+    {
+        if ($content === false) {
+            throw new \RuntimeException('Test response did not contain valid content.');
+        }
+
+        $data = json_decode($content, true, 512, JSON_THROW_ON_ERROR);
+        if (!is_array($data)) {
+            throw new \RuntimeException('Test response did not contain a JSON object or array.');
+        }
+
+        /** @var array<string, mixed> $data */
+        return $data;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function decodeListResponse(string|false $content): array
+    {
+        $data = $this->decodeResponse($content);
+
+        /** @var list<array<string, mixed>> $data */
+        return $data;
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     */
+    private function stringValue(array $data, string $key): string
+    {
+        $value = $data[$key] ?? null;
+        if (!is_string($value)) {
+            throw new \RuntimeException(sprintf('Test response field "%s" is not a string.', $key));
+        }
+
+        return $value;
+    }
+
     public function testCompleteUserJourney(): void
     {
         $client = self::createClient();
         $userId = 'test-user-uuid-' . bin2hex(random_bytes(4));
         $headers = $this->createAuthHeaders($userId);
+        $scheduleStart = (new \DateTimeImmutable('+1 day'))->setTime(0, 0);
+        $scheduleEnd = $scheduleStart->modify('+14 days');
+        $doseRangeEnd = $scheduleStart->modify('+4 days');
+        $scheduleStartIso = $scheduleStart->format(\DateTimeInterface::ATOM);
+        $scheduleEndIso = $scheduleEnd->format(\DateTimeInterface::ATOM);
+        $doseRangeEndIso = $doseRangeEnd->format(\DateTimeInterface::ATOM);
 
         // 1. Create Profile
         $client->request(
@@ -34,7 +93,7 @@ final class FeaturesIntegrationTest extends WebTestCase
             [],
             [],
             $headers,
-            json_encode([
+            $this->encode([
                 'name' => 'John Doe',
                 'birthDate' => '1990-01-01T00:00:00Z',
                 'gender' => 'male',
@@ -43,17 +102,15 @@ final class FeaturesIntegrationTest extends WebTestCase
         );
 
         self::assertSame(Response::HTTP_CREATED, $client->getResponse()->getStatusCode());
-        $profileData = json_decode($client->getResponse()->getContent(), true);
-        self::assertIsArray($profileData);
+        $profileData = $this->decodeResponse($client->getResponse()->getContent());
         self::assertArrayHasKey('id', $profileData);
-        $profileId = $profileData['id'];
+        $profileId = $this->stringValue($profileData, 'id');
         self::assertSame('John Doe', $profileData['name']);
 
         // 2. Get Profiles
         $client->request('GET', '/api/v1/profiles', [], [], $headers);
         self::assertSame(Response::HTTP_OK, $client->getResponse()->getStatusCode());
-        $profilesList = json_decode($client->getResponse()->getContent(), true);
-        self::assertIsArray($profilesList);
+        $profilesList = $this->decodeListResponse($client->getResponse()->getContent());
         self::assertNotEmpty($profilesList);
 
         // 3. Update Profile
@@ -63,7 +120,7 @@ final class FeaturesIntegrationTest extends WebTestCase
             [],
             [],
             $headers,
-            json_encode([
+            $this->encode([
                 'name' => 'John Doe Updated',
                 'birthDate' => '1990-01-01T00:00:00Z',
                 'gender' => 'male',
@@ -71,7 +128,7 @@ final class FeaturesIntegrationTest extends WebTestCase
             ])
         );
         self::assertSame(Response::HTTP_OK, $client->getResponse()->getStatusCode());
-        $updatedProfile = json_decode($client->getResponse()->getContent(), true);
+        $updatedProfile = $this->decodeResponse($client->getResponse()->getContent());
         self::assertSame('John Doe Updated', $updatedProfile['name']);
 
         // 4. Create Medication
@@ -82,7 +139,7 @@ final class FeaturesIntegrationTest extends WebTestCase
             [],
             [],
             $headers,
-            json_encode([
+            $this->encode([
                 'name' => 'Ibuprofen',
                 'dosage' => '400mg',
                 'instructions' => 'Take with food',
@@ -91,9 +148,8 @@ final class FeaturesIntegrationTest extends WebTestCase
             ])
         );
         self::assertSame(Response::HTTP_CREATED, $client->getResponse()->getStatusCode());
-        $medData = json_decode($client->getResponse()->getContent(), true);
-        self::assertIsArray($medData);
-        $medicationId = $medData['id'];
+        $medData = $this->decodeResponse($client->getResponse()->getContent());
+        $medicationId = $this->stringValue($medData, 'id');
         self::assertSame('Ibuprofen', $medData['name']);
         self::assertSame($medicationClientId, $medData['clientId']);
 
@@ -104,7 +160,7 @@ final class FeaturesIntegrationTest extends WebTestCase
             [],
             [],
             $headers,
-            json_encode([
+            $this->encode([
                 'name' => 'Ibuprofen',
                 'dosage' => '400mg',
                 'instructions' => 'Take with food',
@@ -113,14 +169,13 @@ final class FeaturesIntegrationTest extends WebTestCase
             ])
         );
         self::assertSame(Response::HTTP_CREATED, $client->getResponse()->getStatusCode());
-        $medDataDup = json_decode($client->getResponse()->getContent(), true);
+        $medDataDup = $this->decodeResponse($client->getResponse()->getContent());
         self::assertSame($medicationId, $medDataDup['id']);
 
         // 5. Get Medications
         $client->request('GET', '/api/v1/profiles/' . $profileId . '/medications', [], [], $headers);
         self::assertSame(Response::HTTP_OK, $client->getResponse()->getStatusCode());
-        $medsList = json_decode($client->getResponse()->getContent(), true);
-        self::assertIsArray($medsList);
+        $medsList = $this->decodeListResponse($client->getResponse()->getContent());
         self::assertNotEmpty($medsList);
 
         // 6. Create Daily Schedule
@@ -131,11 +186,11 @@ final class FeaturesIntegrationTest extends WebTestCase
             [],
             [],
             $headers,
-            json_encode([
+            $this->encode([
                 'medicationId' => $medicationId,
                 'type' => 'daily',
-                'startDate' => '2026-07-01T00:00:00Z',
-                'endDate' => '2026-07-15T00:00:00Z',
+                'startDate' => $scheduleStartIso,
+                'endDate' => $scheduleEndIso,
                 'timesOfDay' => [
                     ['hour' => 8, 'minute' => 0],
                     ['hour' => 20, 'minute' => 0],
@@ -144,9 +199,8 @@ final class FeaturesIntegrationTest extends WebTestCase
             ])
         );
         self::assertSame(Response::HTTP_CREATED, $client->getResponse()->getStatusCode());
-        $schData = json_decode($client->getResponse()->getContent(), true);
-        self::assertIsArray($schData);
-        $scheduleId = $schData['id'];
+        $schData = $this->decodeResponse($client->getResponse()->getContent());
+        $scheduleId = $this->stringValue($schData, 'id');
         self::assertSame($scheduleClientId, $schData['clientId']);
 
         // Test Idempotent creation of Schedule
@@ -156,11 +210,11 @@ final class FeaturesIntegrationTest extends WebTestCase
             [],
             [],
             $headers,
-            json_encode([
+            $this->encode([
                 'medicationId' => $medicationId,
                 'type' => 'daily',
-                'startDate' => '2026-07-01T00:00:00Z',
-                'endDate' => '2026-07-15T00:00:00Z',
+                'startDate' => $scheduleStartIso,
+                'endDate' => $scheduleEndIso,
                 'timesOfDay' => [
                     ['hour' => 8, 'minute' => 0],
                     ['hour' => 20, 'minute' => 0],
@@ -169,31 +223,29 @@ final class FeaturesIntegrationTest extends WebTestCase
             ])
         );
         self::assertSame(Response::HTTP_CREATED, $client->getResponse()->getStatusCode());
-        $schDataDup = json_decode($client->getResponse()->getContent(), true);
+        $schDataDup = $this->decodeResponse($client->getResponse()->getContent());
         self::assertSame($scheduleId, $schDataDup['id']);
 
         // 7. Get Schedules
         $client->request('GET', '/api/v1/profiles/' . $profileId . '/schedules', [], [], $headers);
         self::assertSame(Response::HTTP_OK, $client->getResponse()->getStatusCode());
-        $schedulesList = json_decode($client->getResponse()->getContent(), true);
-        self::assertIsArray($schedulesList);
+        $schedulesList = $this->decodeListResponse($client->getResponse()->getContent());
         self::assertNotEmpty($schedulesList);
 
         // 8. Get Dose Events (pre-expanded from schedule creation)
         $client->request(
             'GET',
-            '/api/v1/profiles/' . $profileId . '/dose-events?from=2026-07-01T00:00:00Z&to=2026-07-05T00:00:00Z',
+            '/api/v1/profiles/' . $profileId . '/dose-events?from=' . rawurlencode($scheduleStartIso) . '&to=' . rawurlencode($doseRangeEndIso),
             [],
             [],
             $headers
         );
         self::assertSame(Response::HTTP_OK, $client->getResponse()->getStatusCode());
-        $doseEvents = json_decode($client->getResponse()->getContent(), true);
-        self::assertIsArray($doseEvents);
+        $doseEvents = $this->decodeListResponse($client->getResponse()->getContent());
         self::assertNotEmpty($doseEvents);
         $firstDoseEvent = $doseEvents[0];
-        $doseEventId = $firstDoseEvent['id'];
-        $doseEventScheduledAt = $firstDoseEvent['scheduledAt'];
+        $doseEventId = $this->stringValue($firstDoseEvent, 'id');
+        $doseEventScheduledAt = $this->stringValue($firstDoseEvent, 'scheduledAt');
 
         // 9. Track Dose (mark taken)
         $client->request(
@@ -202,16 +254,16 @@ final class FeaturesIntegrationTest extends WebTestCase
             [],
             [],
             $headers,
-            json_encode([
+            $this->encode([
                 'id' => $doseEventId,
                 'scheduleId' => $scheduleId,
                 'scheduledAt' => $doseEventScheduledAt,
                 'status' => 'taken',
-                'takenAt' => '2026-07-01T08:05:00Z',
+                'takenAt' => (new \DateTimeImmutable($doseEventScheduledAt))->modify('+5 minutes')->format(\DateTimeInterface::ATOM),
             ])
         );
         self::assertSame(Response::HTTP_CREATED, $client->getResponse()->getStatusCode());
-        $trackedDose = json_decode($client->getResponse()->getContent(), true);
+        $trackedDose = $this->decodeResponse($client->getResponse()->getContent());
         self::assertSame('taken', $trackedDose['status']);
 
         // 10. Notification - Register Device Token
@@ -222,15 +274,17 @@ final class FeaturesIntegrationTest extends WebTestCase
             [],
             [],
             $headers,
-            json_encode([
+            $this->encode([
                 'fcmToken' => $fcmToken,
                 'platform' => 'android',
                 'locale' => 'en-US',
             ])
         );
         self::assertSame(Response::HTTP_CREATED, $client->getResponse()->getStatusCode());
-        $deviceData = json_decode($client->getResponse()->getContent(), true);
-        self::assertSame($fcmToken, $deviceData['token']);
+        $deviceData = $this->decodeResponse($client->getResponse()->getContent());
+        self::assertArrayHasKey('id', $deviceData);
+        self::assertArrayNotHasKey('token', $deviceData);
+        $deviceId = $this->stringValue($deviceData, 'id');
 
         // 11. Notification - Update Preferences
         $client->request(
@@ -239,7 +293,7 @@ final class FeaturesIntegrationTest extends WebTestCase
             [],
             [],
             $headers,
-            json_encode([
+            $this->encode([
                 'doseRemindersEnabled' => true,
                 'missedDoseNudgesEnabled' => false,
                 'refillAlertsEnabled' => true,
@@ -247,23 +301,103 @@ final class FeaturesIntegrationTest extends WebTestCase
             ])
         );
         self::assertSame(Response::HTTP_OK, $client->getResponse()->getStatusCode());
-        $prefs = json_decode($client->getResponse()->getContent(), true);
+        $prefs = $this->decodeResponse($client->getResponse()->getContent());
         self::assertTrue($prefs['doseRemindersEnabled']);
         self::assertFalse($prefs['missedDoseNudgesEnabled']);
 
+        // Partial update: update only doseRemindersEnabled, ensuring missedDoseNudgesEnabled remains false.
+        $client->request(
+            'PATCH',
+            '/api/v1/notifications/preferences',
+            [],
+            [],
+            $headers,
+            $this->encode([
+                'doseRemindersEnabled' => false,
+            ])
+        );
+        self::assertSame(Response::HTTP_OK, $client->getResponse()->getStatusCode());
+        $partialPrefs = $this->decodeResponse($client->getResponse()->getContent());
+        self::assertFalse($partialPrefs['doseRemindersEnabled']);
+        self::assertFalse($partialPrefs['missedDoseNudgesEnabled']);
+
+        // Test push rejects oversized input at the HTTP boundary.
+        $client->request(
+            'POST',
+            '/api/v1/notifications/test-push',
+            [],
+            [],
+            $headers,
+            $this->encode([
+                'title' => str_repeat('x', 201),
+                'body' => 'Delivery check',
+            ])
+        );
+        self::assertSame(Response::HTTP_UNPROCESSABLE_ENTITY, $client->getResponse()->getStatusCode());
+
         // 12. CalendarIntegration - Connect Google and Microsoft
+        $googleCodeVerifier = str_repeat('g', 43);
+        $googleCodeChallenge = rtrim(strtr(base64_encode(hash('sha256', $googleCodeVerifier, true)), '+/', '-_'), '=');
+        $client->request(
+            'POST',
+            '/api/v1/calendars/google/authorize',
+            [],
+            [],
+            $headers,
+            $this->encode([
+                'profileId' => $profileId,
+                'codeChallenge' => $googleCodeChallenge,
+            ])
+        );
+        self::assertSame(Response::HTTP_OK, $client->getResponse()->getStatusCode());
+        $googleAuthorization = $this->decodeResponse($client->getResponse()->getContent());
+
         $client->request(
             'POST',
             '/api/v1/calendars/google/connect',
             [],
             [],
             $headers,
-            json_encode([
+            $this->encode([
                 'profileId' => $profileId,
-                'refreshToken' => 'mock-google-refresh-token',
+                'code' => 'mock-google-code',
+                'state' => $this->stringValue($googleAuthorization, 'state'),
+                'codeVerifier' => $googleCodeVerifier,
             ])
         );
         self::assertSame(Response::HTTP_OK, $client->getResponse()->getStatusCode());
+
+        // Authorization state is single-use.
+        $client->request(
+            'POST',
+            '/api/v1/calendars/google/connect',
+            [],
+            [],
+            $headers,
+            $this->encode([
+                'profileId' => $profileId,
+                'code' => 'mock-google-code',
+                'state' => $this->stringValue($googleAuthorization, 'state'),
+                'codeVerifier' => $googleCodeVerifier,
+            ])
+        );
+        self::assertSame(Response::HTTP_UNAUTHORIZED, $client->getResponse()->getStatusCode());
+
+        $microsoftCodeVerifier = str_repeat('m', 43);
+        $microsoftCodeChallenge = rtrim(strtr(base64_encode(hash('sha256', $microsoftCodeVerifier, true)), '+/', '-_'), '=');
+        $client->request(
+            'POST',
+            '/api/v1/calendars/microsoft/authorize',
+            [],
+            [],
+            $headers,
+            $this->encode([
+                'profileId' => $profileId,
+                'codeChallenge' => $microsoftCodeChallenge,
+            ])
+        );
+        self::assertSame(Response::HTTP_OK, $client->getResponse()->getStatusCode());
+        $microsoftAuthorization = $this->decodeResponse($client->getResponse()->getContent());
 
         $client->request(
             'POST',
@@ -271,12 +405,20 @@ final class FeaturesIntegrationTest extends WebTestCase
             [],
             [],
             $headers,
-            json_encode([
+            $this->encode([
                 'profileId' => $profileId,
-                'refreshToken' => 'mock-microsoft-refresh-token',
+                'code' => 'mock-microsoft-code',
+                'state' => $this->stringValue($microsoftAuthorization, 'state'),
+                'codeVerifier' => $microsoftCodeVerifier,
             ])
         );
         self::assertSame(Response::HTTP_OK, $client->getResponse()->getStatusCode());
+
+        $client->request('GET', '/api/v1/calendars?profileId=' . $profileId, [], [], $headers);
+        self::assertSame(Response::HTTP_OK, $client->getResponse()->getStatusCode());
+        $calendarConnections = $this->decodeListResponse($client->getResponse()->getContent());
+        self::assertCount(2, $calendarConnections);
+        self::assertSame('active', $calendarConnections[0]['status']);
 
         // 13. CalendarIntegration - Force Resync
         $client->request(
@@ -289,10 +431,9 @@ final class FeaturesIntegrationTest extends WebTestCase
         self::assertSame(Response::HTTP_OK, $client->getResponse()->getStatusCode());
 
         // 14. Profile Sync Endpoint
-        $client->request('GET', '/api/v1/profiles/' . $profileId . '/sync?since=2026-07-01T00:00:00Z', [], [], $headers);
+        $client->request('GET', '/api/v1/profiles/' . $profileId . '/sync?since=' . rawurlencode($scheduleStartIso), [], [], $headers);
         self::assertSame(Response::HTTP_OK, $client->getResponse()->getStatusCode());
-        $syncData = json_decode($client->getResponse()->getContent(), true);
-        self::assertIsArray($syncData);
+        $syncData = $this->decodeResponse($client->getResponse()->getContent());
         self::assertArrayHasKey('medications', $syncData);
         self::assertArrayHasKey('schedules', $syncData);
         self::assertArrayHasKey('doseEvents', $syncData);
@@ -300,7 +441,7 @@ final class FeaturesIntegrationTest extends WebTestCase
 
         // 15. Tear down / Deregistrations & Deletions
         // Deregister Device
-        $client->request('DELETE', '/api/v1/devices/' . $fcmToken, [], [], $headers);
+        $client->request('DELETE', '/api/v1/devices/' . $deviceId, [], [], $headers);
         self::assertSame(Response::HTTP_NO_CONTENT, $client->getResponse()->getStatusCode());
 
         // Disconnect Calendar

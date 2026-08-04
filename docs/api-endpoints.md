@@ -199,8 +199,9 @@ Los campos varían según `type`:
 | Método | Path | Auth | Body | Status | Descripción |
 |--------|------|------|------|--------|-------------|
 | `POST`   | `/devices` | ✅ | Ver abajo | `201` | Registra un device token (FCM) |
-| `DELETE` | `/devices/{token}` | ✅ | — | `204` | Elimina un device token |
+| `DELETE` | `/devices/{deviceId}` | ✅ | — | `204` | Elimina un device registration |
 | `PATCH`  | `/notifications/preferences` | ✅ | Ver abajo | `200` | Actualiza preferencias push |
+| `POST`   | `/notifications/test-push` | ✅ | `{ title, body, data? }` | `200` / `500` | Envía un push de prueba; devuelve `500` si alguna entrega falla |
 
 ### Body — `POST /devices`
 
@@ -211,6 +212,8 @@ Los campos varían según `type`:
   "locale": "es-MX"
 }
 ```
+
+The `201` response contains only the registration `id`, `platform`, and `locale`. The FCM token is never returned. Use that `id` in `DELETE /devices/{deviceId}`.
 
 ### Body — `PATCH /notifications/preferences`
 
@@ -233,13 +236,24 @@ Los campos varían según `type`:
 
 | Método | Path | Auth | Body / Query | Status | Descripción |
 |--------|------|------|------|--------|-------------|
-| `POST`   | `/calendars/google/connect` | ✅ | `{ profileId, refreshToken }` | `200` | Conecta Google Calendar |
-| `POST`   | `/calendars/microsoft/connect` | ✅ | `{ profileId, refreshToken }` | `200` | Conecta Microsoft Calendar |
+| `POST`   | `/calendars/{provider}/authorize` | ✅ | `{ profileId, codeChallenge }` | `200` | Starts PKCE authorization |
+| `POST`   | `/calendars/{provider}/connect` | ✅ | `{ profileId, code, state, codeVerifier }` | `200` | Completes PKCE authorization |
+| `GET`    | `/calendars` | ✅ | `?profileId=<uuid>` | `200` | Returns connection status |
 | `DELETE` | `/calendars/{provider}` | ✅ | `?profileId=<uuid>` *(query)* | `204` | Desconecta un calendario |
 | `POST`   | `/calendars/sync` | ✅ | `?profileId=<uuid>` *(query, opcional)* | `200` | Sync manual de calendario |
 
-> `{provider}` ∈ `{ google, microsoft }`
-> Los tokens OAuth se almacenan **cifrados en reposo** (libsodium) y **nunca** se exponen en la API.
+> `{provider}` ∈ `{ google, microsoft }`. El `codeChallenge` y `codeVerifier` pertenecen al flujo Authorization Code + PKCE. La solicitud de autorización expira en cinco minutos y `state` solo puede consumirse una vez.
+> El refresh token se cifra en el backend con libsodium y nunca se devuelve en la API. Se obtiene únicamente en el backend durante el flujo PKCE.
+
+### Configuración de providers
+
+Google Calendar y Microsoft Graph usan clientes OAuth públicos de Android con PKCE. Configura `GOOGLE_CLIENT_ID`, `GOOGLE_CALENDAR_REDIRECT_URI`, `MICROSOFT_CLIENT_ID`, `MICROSOFT_TENANT_ID` y `MICROSOFT_CALENDAR_REDIRECT_URI`. Los client secrets son opcionales y nunca deben incluirse en la aplicación Android. Firebase Cloud Messaging usa HTTP v1 con una cuenta de servicio, no el endpoint legacy ni `FCM_SERVER_KEY`:
+
+- `FIREBASE_PROJECT_ID`
+- `FIREBASE_CLIENT_EMAIL`
+- `FIREBASE_PRIVATE_KEY`
+
+Las credenciales deben existir únicamente en variables de entorno/secret manager, nunca en el repositorio ni en logs.
 
 ---
 
@@ -253,6 +267,6 @@ Los campos varían según `type`:
 | Schedule | 3 |
 | DoseEvent | 2 |
 | Notification | 3 |
-| CalendarIntegration | 4 |
+| CalendarIntegration | 5 |
 | Health | 1 |
-| **Total** | **26** |
+| **Total** | **27** |

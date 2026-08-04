@@ -12,8 +12,8 @@ final class DeviceToken
         private readonly string $id,
         private readonly UserId $accountId,
         private readonly string $token,
-        private readonly string $platform,
-        private readonly string $locale,
+        private string $platform,
+        private string $locale,
         private readonly \DateTimeImmutable $createdAt
     ) {
     }
@@ -55,6 +55,12 @@ final class DeviceToken
     public function locale(): string
     {
         return $this->locale;
+    }
+
+    public function updateMetadata(string $platform, string $locale): void
+    {
+        $this->platform = $platform;
+        $this->locale = $locale;
     }
 
     public function createdAt(): \DateTimeImmutable

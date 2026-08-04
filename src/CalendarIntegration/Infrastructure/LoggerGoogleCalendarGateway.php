@@ -4,14 +4,30 @@ declare(strict_types=1);
 
 namespace CalendarIntegration\Infrastructure;
 
-use CalendarIntegration\Domain\CalendarGateway;
+use CalendarIntegration\Domain\CalendarOAuthTokens;
+use CalendarIntegration\Domain\CalendarProvider;
 use Psr\Log\LoggerInterface;
 
-final class LoggerGoogleCalendarGateway implements CalendarGateway
+final class LoggerGoogleCalendarGateway implements CalendarProvider
 {
     public function __construct(
         private readonly LoggerInterface $logger
     ) {
+    }
+
+    public function authorizationUrl(string $state, string $codeChallenge): string
+    {
+        return 'https://accounts.google.com/mock-authorize?state=' . rawurlencode($state);
+    }
+
+    public function exchangeAuthorizationCode(string $code, string $codeVerifier): CalendarOAuthTokens
+    {
+        return new CalendarOAuthTokens('mock-google-access-token', 'mock-google-refresh-token');
+    }
+
+    public function refreshAccessToken(string $refreshToken): CalendarOAuthTokens
+    {
+        return new CalendarOAuthTokens('mock-google-access-token', null);
     }
 
     public function upsertEvent(
@@ -19,17 +35,12 @@ final class LoggerGoogleCalendarGateway implements CalendarGateway
         string $title,
         \DateTimeImmutable $start,
         \DateTimeImmutable $end,
-        string $description
+        string $description,
+        ?string $externalEventId = null,
+        ?string $idempotencyKey = null
     ): string {
-        $eventId = 'google_mock_' . bin2hex(random_bytes(8));
-        $this->logger->info(sprintf(
-            'Google Calendar Event Upserted (mock ID: %s): Title: "%s", Start: "%s", End: "%s", Desc: "%s"',
-            $eventId,
-            $title,
-            $start->format(\DateTimeInterface::ATOM),
-            $end->format(\DateTimeInterface::ATOM),
-            $description
-        ));
+        $eventId = $externalEventId ?? 'google_mock_' . bin2hex(random_bytes(8));
+        $this->logger->info('Google Calendar event upserted in test gateway.', ['eventId' => $eventId]);
 
         return $eventId;
     }

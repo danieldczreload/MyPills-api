@@ -61,6 +61,11 @@ class CalendarEventMappingDoctrineEntity
         return $this->externalEventId;
     }
 
+    public function setExternalEventId(string $externalEventId): void
+    {
+        $this->externalEventId = $externalEventId;
+    }
+
     public function getCreatedAt(): \DateTimeImmutable
     {
         return $this->createdAt;

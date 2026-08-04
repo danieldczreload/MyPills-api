@@ -4,14 +4,30 @@ declare(strict_types=1);
 
 namespace CalendarIntegration\Infrastructure;
 
-use CalendarIntegration\Domain\CalendarGateway;
+use CalendarIntegration\Domain\CalendarOAuthTokens;
+use CalendarIntegration\Domain\CalendarProvider;
 use Psr\Log\LoggerInterface;
 
-final class LoggerMicrosoftCalendarGateway implements CalendarGateway
+final class LoggerMicrosoftCalendarGateway implements CalendarProvider
 {
     public function __construct(
         private readonly LoggerInterface $logger
     ) {
+    }
+
+    public function authorizationUrl(string $state, string $codeChallenge): string
+    {
+        return 'https://login.microsoftonline.com/mock-authorize?state=' . rawurlencode($state);
+    }
+
+    public function exchangeAuthorizationCode(string $code, string $codeVerifier): CalendarOAuthTokens
+    {
+        return new CalendarOAuthTokens('mock-microsoft-access-token', 'mock-microsoft-refresh-token');
+    }
+
+    public function refreshAccessToken(string $refreshToken): CalendarOAuthTokens
+    {
+        return new CalendarOAuthTokens('mock-microsoft-access-token', null);
     }
 
     public function upsertEvent(
@@ -19,17 +35,12 @@ final class LoggerMicrosoftCalendarGateway implements CalendarGateway
         string $title,
         \DateTimeImmutable $start,
         \DateTimeImmutable $end,
-        string $description
+        string $description,
+        ?string $externalEventId = null,
+        ?string $idempotencyKey = null
     ): string {
-        $eventId = 'microsoft_mock_' . bin2hex(random_bytes(8));
-        $this->logger->info(sprintf(
-            'Microsoft Calendar Event Upserted (mock ID: %s): Title: "%s", Start: "%s", End: "%s", Desc: "%s"',
-            $eventId,
-            $title,
-            $start->format(\DateTimeInterface::ATOM),
-            $end->format(\DateTimeInterface::ATOM),
-            $description
-        ));
+        $eventId = $externalEventId ?? 'microsoft_mock_' . bin2hex(random_bytes(8));
+        $this->logger->info('Microsoft Calendar event upserted in test gateway.', ['eventId' => $eventId]);
 
         return $eventId;
     }

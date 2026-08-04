@@ -10,7 +10,7 @@ final class CalendarEventMapping
         private readonly string $id,
         private readonly string $doseEventId,
         private readonly string $provider,
-        private readonly string $externalEventId,
+        private string $externalEventId,
         private readonly \DateTimeImmutable $createdAt
     ) {
     }
@@ -46,6 +46,11 @@ final class CalendarEventMapping
     public function externalEventId(): string
     {
         return $this->externalEventId;
+    }
+
+    public function updateExternalEventId(string $externalEventId): void
+    {
+        $this->externalEventId = $externalEventId;
     }
 
     public function createdAt(): \DateTimeImmutable

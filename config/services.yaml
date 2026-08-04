@@ -7,13 +7,19 @@
 # Put parameters here that don't need to change on each machine where the app is deployed
 # https://symfony.com/doc/current/best_practices.html#use-parameters-for-application-configuration
 parameters:
-    google.client_id: '%env(default::GOOGLE_CLIENT_ID)%'
-    google.client_secret: '%env(default::GOOGLE_CLIENT_SECRET)%'
-    microsoft.client_id: '%env(default::MICROSOFT_CLIENT_ID)%'
-    microsoft.client_secret: '%env(default::MICROSOFT_CLIENT_SECRET)%'
+    environment.empty_string: ''
+    google.client_id: '%env(default:environment.empty_string:GOOGLE_CLIENT_ID)%'
+    google.client_secret: '%env(default:environment.empty_string:GOOGLE_CLIENT_SECRET)%'
+    google.calendar_redirect_uri: '%env(default:environment.empty_string:GOOGLE_CALENDAR_REDIRECT_URI)%'
+    microsoft.client_id: '%env(default:environment.empty_string:MICROSOFT_CLIENT_ID)%'
+    microsoft.client_secret: '%env(default:environment.empty_string:MICROSOFT_CLIENT_SECRET)%'
     microsoft.tenant_id: '%env(default:common:MICROSOFT_TENANT_ID)%'
-    fcm.server_key: '%env(default::FCM_SERVER_KEY)%'
-    fcm.project_id: '%env(default::FCM_PROJECT_ID)%'
+    microsoft.calendar_redirect_uri: '%env(default:environment.empty_string:MICROSOFT_CALENDAR_REDIRECT_URI)%'
+    token_vault.secret: '%env(OAUTH_TOKEN_ENCRYPTION_KEY)%'
+    token_vault.previous_secrets: '%env(default:environment.empty_string:OAUTH_TOKEN_ENCRYPTION_KEY_PREVIOUS)%'
+    firebase.project_id: '%env(default:environment.empty_string:FIREBASE_PROJECT_ID)%'
+    firebase.client_email: '%env(default:environment.empty_string:FIREBASE_CLIENT_EMAIL)%'
+    firebase.private_key: '%env(default:environment.empty_string:FIREBASE_PRIVATE_KEY)%'
 
 services:
     # default configuration for services in *this* file
@@ -37,6 +43,11 @@ services:
     Shared\Infrastructure\Security\JwtService:
         arguments:
             $secret: '%kernel.secret%'
+
+    Shared\Infrastructure\Security\SodiumTokenVault:
+        arguments:
+            $secret: '%token_vault.secret%'
+            $previousSecrets: '%token_vault.previous_secrets%'
 
     Identity\:
         resource: '../src/Identity/'
@@ -80,6 +91,7 @@ services:
     Identity\Domain\RefreshTokenRepository: '@Identity\Infrastructure\Persistence\DoctrineRefreshTokenRepository'
     Identity\Domain\GoogleIdentityProvider: '@Identity\Infrastructure\Security\HttpGoogleIdentityProvider'
     Identity\Domain\MicrosoftIdentityProvider: '@Identity\Infrastructure\Security\HttpMicrosoftIdentityProvider'
+    Shared\Domain\TokenVault: '@Shared\Infrastructure\Security\SodiumTokenVault'
     Profile\Domain\ProfileRepository: '@Profile\Infrastructure\Persistence\DoctrineProfileRepository'
     Profile\Domain\TombstoneRepository: '@Profile\Infrastructure\Persistence\DoctrineTombstoneRepository'
     Medication\Domain\MedicationRepository: '@Medication\Infrastructure\Persistence\DoctrineMedicationRepository'
@@ -91,6 +103,7 @@ services:
     Notification\Domain\PushNotificationGateway: '@Notification\Infrastructure\FcmPushNotificationGateway'
     CalendarIntegration\Domain\CalendarLinkRepository: '@CalendarIntegration\Infrastructure\Persistence\DoctrineCalendarLinkRepository'
     CalendarIntegration\Domain\CalendarEventMappingRepository: '@CalendarIntegration\Infrastructure\Persistence\DoctrineCalendarEventMappingRepository'
+    CalendarIntegration\Domain\CalendarAuthorizationRequestRepository: '@CalendarIntegration\Infrastructure\Persistence\DoctrineCalendarAuthorizationRequestRepository'
 
     Identity\Infrastructure\Security\HttpGoogleIdentityProvider:
         arguments:
@@ -102,15 +115,23 @@ services:
         arguments:
             $clientId: '%google.client_id%'
             $clientSecret: '%google.client_secret%'
+            $redirectUri: '%google.calendar_redirect_uri%'
 
     CalendarIntegration\Infrastructure\MicrosoftCalendarGateway:
         arguments:
             $clientId: '%microsoft.client_id%'
             $clientSecret: '%microsoft.client_secret%'
             $tenantId: '%microsoft.tenant_id%'
+            $redirectUri: '%microsoft.calendar_redirect_uri%'
 
     Notification\Infrastructure\FcmPushNotificationGateway:
         arguments:
-            $serverKey: '%fcm.server_key%'
-            $projectId: '%fcm.project_id%'
+            $projectId: '%firebase.project_id%'
+            $clientEmail: '%firebase.client_email%'
+            $privateKey: '%firebase.private_key%'
 
+when@test:
+    services:
+        Notification\Domain\PushNotificationGateway: '@Notification\Infrastructure\LoggerPushNotificationGateway'
+        CalendarIntegration\Infrastructure\GoogleCalendarGateway: '@CalendarIntegration\Infrastructure\LoggerGoogleCalendarGateway'
+        CalendarIntegration\Infrastructure\MicrosoftCalendarGateway: '@CalendarIntegration\Infrastructure\LoggerMicrosoftCalendarGateway'

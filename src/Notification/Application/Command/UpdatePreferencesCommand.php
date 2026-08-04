@@ -8,10 +8,10 @@ final class UpdatePreferencesCommand
 {
     public function __construct(
         public readonly string $accountId,
-        public readonly bool $doseRemindersEnabled,
-        public readonly bool $missedDoseNudgesEnabled,
-        public readonly bool $refillAlertsEnabled,
-        public readonly bool $weeklyStreakSummariesEnabled
+        public readonly ?bool $doseRemindersEnabled = null,
+        public readonly ?bool $missedDoseNudgesEnabled = null,
+        public readonly ?bool $refillAlertsEnabled = null,
+        public readonly ?bool $weeklyStreakSummariesEnabled = null
     ) {
     }
 }

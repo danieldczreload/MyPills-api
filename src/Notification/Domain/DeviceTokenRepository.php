@@ -12,6 +12,8 @@ interface DeviceTokenRepository
 
     public function findByToken(string $token): ?DeviceToken;
 
+    public function findById(string $id): ?DeviceToken;
+
     /**
      * @return DeviceToken[]
      */

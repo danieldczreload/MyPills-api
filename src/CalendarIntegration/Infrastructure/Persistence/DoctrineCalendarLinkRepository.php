@@ -7,12 +7,15 @@ namespace CalendarIntegration\Infrastructure\Persistence;
 use Doctrine\ORM\EntityManagerInterface;
 use CalendarIntegration\Domain\CalendarLink;
 use CalendarIntegration\Domain\CalendarLinkRepository;
+use CalendarIntegration\Domain\CalendarLinkStatus;
+use Shared\Domain\TokenVault;
 use Shared\Domain\ValueObject\ProfileId;
 
 final class DoctrineCalendarLinkRepository implements CalendarLinkRepository
 {
     public function __construct(
-        private readonly EntityManagerInterface $entityManager
+        private readonly EntityManagerInterface $entityManager,
+        private readonly TokenVault $tokenVault
     ) {
     }
 
@@ -25,14 +28,16 @@ final class DoctrineCalendarLinkRepository implements CalendarLinkRepository
                 $link->id(),
                 $link->profileId()->value(),
                 $link->provider(),
-                $link->refreshToken(),
+                $link->encryptedRefreshToken(),
                 $link->createdAt(),
-                $link->updatedAt()
+                $link->updatedAt(),
+                $link->status()->value
             );
             $this->entityManager->persist($entity);
         } else {
-            $entity->setRefreshToken($link->refreshToken());
+            $entity->setRefreshToken($link->encryptedRefreshToken());
             $entity->setUpdatedAt($link->updatedAt());
+            $entity->setStatus($link->status()->value);
         }
 
         $this->entityManager->flush();
@@ -72,13 +77,20 @@ final class DoctrineCalendarLinkRepository implements CalendarLinkRepository
 
     private function mapToDomain(CalendarLinkDoctrineEntity $entity): CalendarLink
     {
+        $encryptedRefreshToken = $entity->getRefreshToken();
+        if (!$this->tokenVault->isEncrypted($encryptedRefreshToken)) {
+            throw new \LogicException('Plaintext calendar token found. Run the token encryption migration.');
+        }
+
         return new CalendarLink(
             $entity->getId(),
             new ProfileId($entity->getProfileId()),
             $entity->getProvider(),
-            $entity->getRefreshToken(),
+            $encryptedRefreshToken,
             $entity->getCreatedAt(),
-            $entity->getUpdatedAt()
+            $entity->getUpdatedAt(),
+            CalendarLinkStatus::tryFrom($entity->getStatus()) ?? CalendarLinkStatus::ACTIVE
         );
     }
+
 }

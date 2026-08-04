@@ -8,6 +8,7 @@
         <ini name="error_reporting" value="-1" />
         <server name="APP_ENV" value="test" force="true" />
         <server name="KERNEL_CLASS" value="App\Kernel" />
+        <server name="OAUTH_TOKEN_ENCRYPTION_KEY" value="test-only-vault-key-0123456789abcdef" force="true" />
         <server name="SHELL_VERBOSITY" value="-1" />
         <server name="SYMFONY_PHPUNIT_REMOVE" value="" />
     </php>

@@ -4,71 +4,139 @@ declare(strict_types=1);
 
 namespace CalendarIntegration\Infrastructure;
 
-use CalendarIntegration\Domain\CalendarGateway;
+use CalendarIntegration\Domain\CalendarOAuthTokens;
+use CalendarIntegration\Domain\CalendarProvider;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
-final class MicrosoftCalendarGateway implements CalendarGateway
+final class MicrosoftCalendarGateway implements CalendarProvider
 {
+    private const PROVIDER_NAME = 'Microsoft';
+    private const SCOPE = 'openid profile offline_access User.Read Calendars.ReadWrite';
+
+    private readonly OAuthTokenEndpoint $tokenEndpoint;
+
     public function __construct(
         private readonly HttpClientInterface $httpClient,
         private readonly string $clientId = '',
         private readonly string $clientSecret = '',
-        private readonly string $tenantId = 'common'
+        private readonly string $tenantId = 'common',
+        private readonly string $redirectUri = ''
     ) {
+        $this->tokenEndpoint = new OAuthTokenEndpoint($httpClient);
+    }
+
+    public function authorizationUrl(string $state, string $codeChallenge): string
+    {
+        if ($this->clientId === '' || $this->redirectUri === '') {
+            throw new \LogicException('Microsoft Calendar OAuth client is not configured.');
+        }
+
+        return sprintf(
+            'https://login.microsoftonline.com/%s/oauth2/v2.0/authorize?',
+            rawurlencode($this->tenantId)
+        ) . http_build_query([
+            'client_id' => $this->clientId,
+            'response_type' => 'code',
+            'redirect_uri' => $this->redirectUri,
+            'response_mode' => 'query',
+            'scope' => self::SCOPE,
+            'state' => $state,
+            'code_challenge' => $codeChallenge,
+            'code_challenge_method' => 'S256',
+        ], '', '&', PHP_QUERY_RFC3986);
+    }
+
+    public function exchangeAuthorizationCode(string $code, string $codeVerifier): CalendarOAuthTokens
+    {
+        return $this->tokenEndpoint->exchangeAuthorizationCode(
+            $this->tokenUrl(),
+            self::PROVIDER_NAME,
+            $this->clientId,
+            $this->clientSecret,
+            $this->redirectUri,
+            $code,
+            $codeVerifier,
+            ['scope' => self::SCOPE]
+        );
+    }
+
+    public function refreshAccessToken(string $refreshToken): CalendarOAuthTokens
+    {
+        return $this->tokenEndpoint->refreshAccessToken(
+            $this->tokenUrl(),
+            self::PROVIDER_NAME,
+            $this->clientId,
+            $this->clientSecret,
+            $refreshToken
+        );
     }
 
     public function upsertEvent(
-        string $refreshToken,
+        string $accessToken,
         string $title,
         \DateTimeImmutable $start,
         \DateTimeImmutable $end,
-        string $description
+        string $description,
+        ?string $externalEventId = null,
+        ?string $idempotencyKey = null
     ): string {
-        $accessToken = $this->getAccessToken($refreshToken);
+        $isCreate = $externalEventId === null;
+        $collectionUrl = 'https://graph.microsoft.com/v1.0/me/events';
+        $url = $isCreate ? $collectionUrl : $collectionUrl . '/' . rawurlencode($externalEventId);
+        $event = [
+            'subject' => $title,
+            'body' => [
+                'contentType' => 'text',
+                'content' => $description,
+            ],
+            'start' => [
+                'dateTime' => $start->setTimezone(new \DateTimeZone('UTC'))->format('Y-m-d\TH:i:s'),
+                'timeZone' => 'UTC',
+            ],
+            'end' => [
+                'dateTime' => $end->setTimezone(new \DateTimeZone('UTC'))->format('Y-m-d\TH:i:s'),
+                'timeZone' => 'UTC',
+            ],
+        ];
+
+        if ($isCreate && $idempotencyKey !== null) {
+            $event['transactionId'] = $idempotencyKey;
+        }
 
         $response = $this->httpClient->request(
-            'POST',
-            'https://graph.microsoft.com/v1.0/me/events',
+            $isCreate ? 'POST' : 'PATCH',
+            $url,
             [
                 'headers' => [
                     'Authorization' => 'Bearer ' . $accessToken,
                     'Content-Type' => 'application/json',
                 ],
-                'json' => [
-                    'subject' => $title,
-                    'body' => [
-                        'contentType' => 'text',
-                        'content' => $description,
-                    ],
-                    'start' => [
-                        'dateTime' => $start->setTimezone(new \DateTimeZone('UTC'))->format('Y-m-d\TH:i:s'),
-                        'timeZone' => 'UTC',
-                    ],
-                    'end' => [
-                        'dateTime' => $end->setTimezone(new \DateTimeZone('UTC'))->format('Y-m-d\TH:i:s'),
-                        'timeZone' => 'UTC',
-                    ],
-                ],
+                'json' => $event,
             ]
         );
 
+        if ($response->getStatusCode() === 404 && $externalEventId !== null) {
+            return $this->upsertEvent($accessToken, $title, $start, $end, $description, null, $idempotencyKey);
+        }
+
         if ($response->getStatusCode() < 200 || $response->getStatusCode() >= 300) {
             throw new \RuntimeException(sprintf(
-                'Microsoft Graph API failed with status %d: %s',
-                $response->getStatusCode(),
-                $response->getContent(false)
+                'Microsoft Graph API failed with status %d.',
+                $response->getStatusCode()
             ));
         }
 
         $data = $response->toArray();
 
-        return (string) ($data['id'] ?? '');
+        if (!is_string($data['id'] ?? null) || $data['id'] === '') {
+            throw new \RuntimeException('Microsoft Graph API returned an event without an ID.');
+        }
+
+        return $data['id'];
     }
 
-    public function deleteEvent(string $refreshToken, string $externalEventId): void
+    public function deleteEvent(string $accessToken, string $externalEventId): void
     {
-        $accessToken = $this->getAccessToken($refreshToken);
-
         $response = $this->httpClient->request(
             'DELETE',
             'https://graph.microsoft.com/v1.0/me/events/' . rawurlencode($externalEventId),
@@ -80,47 +148,12 @@ final class MicrosoftCalendarGateway implements CalendarGateway
         );
 
         if ($response->getStatusCode() !== 204 && $response->getStatusCode() !== 200 && $response->getStatusCode() !== 404) {
-            throw new \RuntimeException(sprintf(
-                'Microsoft Graph API delete failed with status %d: %s',
-                $response->getStatusCode(),
-                $response->getContent(false)
-            ));
+            throw new \RuntimeException(sprintf('Microsoft Graph API delete failed with status %d.', $response->getStatusCode()));
         }
     }
 
-    private function getAccessToken(string $refreshToken): string
+    private function tokenUrl(): string
     {
-        $url = sprintf('https://login.microsoftonline.com/%s/oauth2/v2.0/token', $this->tenantId);
-
-        $response = $this->httpClient->request(
-            'POST',
-            $url,
-            [
-                'body' => [
-                    'client_id' => $this->clientId,
-                    'client_secret' => $this->clientSecret,
-                    'refresh_token' => $refreshToken,
-                    'grant_type' => 'refresh_token',
-                    'scope' => 'https://graph.microsoft.com/.default',
-                ],
-            ]
-        );
-
-        if ($response->getStatusCode() !== 200) {
-            throw new \RuntimeException(sprintf(
-                'Failed to refresh Microsoft OAuth token. Status: %d, Response: %s',
-                $response->getStatusCode(),
-                $response->getContent(false)
-            ));
-        }
-
-        $data = $response->toArray();
-        $accessToken = $data['access_token'] ?? null;
-
-        if ($accessToken === null) {
-            throw new \RuntimeException('Microsoft OAuth response did not contain access_token.');
-        }
-
-        return (string) $accessToken;
+        return sprintf('https://login.microsoftonline.com/%s/oauth2/v2.0/token', rawurlencode($this->tenantId));
     }
 }

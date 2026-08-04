@@ -19,6 +19,7 @@
 
 ###> Local tooling ###
 /.serena/
+/.headroom/
 
 ###> IDE / OS ###
 /.idea/

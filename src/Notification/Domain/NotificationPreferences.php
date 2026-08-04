@@ -72,15 +72,23 @@ final class NotificationPreferences
     }
 
     public function update(
-        bool $doseRemindersEnabled,
-        bool $missedDoseNudgesEnabled,
-        bool $refillAlertsEnabled,
-        bool $weeklyStreakSummariesEnabled
+        ?bool $doseRemindersEnabled = null,
+        ?bool $missedDoseNudgesEnabled = null,
+        ?bool $refillAlertsEnabled = null,
+        ?bool $weeklyStreakSummariesEnabled = null
     ): void {
-        $this->doseRemindersEnabled = $doseRemindersEnabled;
-        $this->missedDoseNudgesEnabled = $missedDoseNudgesEnabled;
-        $this->refillAlertsEnabled = $refillAlertsEnabled;
-        $this->weeklyStreakSummariesEnabled = $weeklyStreakSummariesEnabled;
+        if ($doseRemindersEnabled !== null) {
+            $this->doseRemindersEnabled = $doseRemindersEnabled;
+        }
+        if ($missedDoseNudgesEnabled !== null) {
+            $this->missedDoseNudgesEnabled = $missedDoseNudgesEnabled;
+        }
+        if ($refillAlertsEnabled !== null) {
+            $this->refillAlertsEnabled = $refillAlertsEnabled;
+        }
+        if ($weeklyStreakSummariesEnabled !== null) {
+            $this->weeklyStreakSummariesEnabled = $weeklyStreakSummariesEnabled;
+        }
         $this->updatedAt = new \DateTimeImmutable();
     }
 }

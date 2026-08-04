@@ -7,12 +7,14 @@ namespace Notification\Infrastructure\Persistence;
 use Doctrine\ORM\EntityManagerInterface;
 use Notification\Domain\DeviceToken;
 use Notification\Domain\DeviceTokenRepository;
+use Shared\Domain\TokenVault;
 use Shared\Domain\ValueObject\UserId;
 
 final class DoctrineDeviceTokenRepository implements DeviceTokenRepository
 {
     public function __construct(
-        private readonly EntityManagerInterface $entityManager
+        private readonly EntityManagerInterface $entityManager,
+        private readonly TokenVault $tokenVault
     ) {
     }
 
@@ -24,12 +26,18 @@ final class DoctrineDeviceTokenRepository implements DeviceTokenRepository
             $entity = new DeviceTokenDoctrineEntity(
                 $deviceToken->id(),
                 $deviceToken->accountId()->value(),
-                $deviceToken->token(),
+                $this->tokenVault->encrypt($deviceToken->token()),
+                $this->tokenVault->fingerprint($deviceToken->token()),
                 $deviceToken->platform(),
                 $deviceToken->locale(),
                 $deviceToken->createdAt()
             );
             $this->entityManager->persist($entity);
+        } else {
+            $entity->setToken($this->tokenVault->encrypt($deviceToken->token()));
+            $entity->setTokenHash($this->tokenVault->fingerprint($deviceToken->token()));
+            $entity->setPlatform($deviceToken->platform());
+            $entity->setLocale($deviceToken->locale());
         }
 
         $this->entityManager->flush();
@@ -37,14 +45,27 @@ final class DoctrineDeviceTokenRepository implements DeviceTokenRepository
 
     public function findByToken(string $token): ?DeviceToken
     {
-        $entity = $this->entityManager->getRepository(DeviceTokenDoctrineEntity::class)
-            ->findOneBy(['token' => $token]);
+        $repository = $this->entityManager->getRepository(DeviceTokenDoctrineEntity::class);
+        $entity = null;
+        foreach ($this->tokenVault->fingerprints($token) as $fingerprint) {
+            $entity = $repository->findOneBy(['tokenHash' => $fingerprint]);
+            if ($entity !== null) {
+                break;
+            }
+        }
 
         if ($entity === null) {
             return null;
         }
 
         return $this->mapToDomain($entity);
+    }
+
+    public function findById(string $id): ?DeviceToken
+    {
+        $entity = $this->entityManager->find(DeviceTokenDoctrineEntity::class, $id);
+
+        return $entity === null ? null : $this->mapToDomain($entity);
     }
 
     /**
@@ -72,10 +93,19 @@ final class DoctrineDeviceTokenRepository implements DeviceTokenRepository
         return new DeviceToken(
             $entity->getId(),
             new UserId($entity->getAccountId()),
-            $entity->getToken(),
+            $this->decryptStoredToken($entity->getToken()),
             $entity->getPlatform(),
             $entity->getLocale(),
             $entity->getCreatedAt()
         );
+    }
+
+    private function decryptStoredToken(string $storedToken): string
+    {
+        if (!$this->tokenVault->isEncrypted($storedToken)) {
+            throw new \LogicException('Plaintext device token found. Run the token encryption migration.');
+        }
+
+        return $this->tokenVault->decrypt($storedToken);
     }
 }

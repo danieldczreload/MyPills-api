@@ -127,7 +127,6 @@ Code, comments, and commits in English.
 - For actions, use: `[target] [action] [reason]. [next step].`
 - Do not omit relevant risks, assumptions, or unresolved issues.
 
-
 <!-- headroom:rtk-instructions -->
 # RTK (Rust Token Killer) - Token-Optimized Commands
 
@@ -158,15 +157,13 @@ rtk summary <cmd>       rtk deps                rtk env
 # GitHub (26-87% savings)
 rtk gh pr view <n>      rtk gh run list         rtk gh issue list
 
-# Infrastructure (85% savings)
-rtk docker ps           rtk kubectl get         rtk docker logs <c>
-
 # Package managers (70-90% savings)
 rtk pip list            rtk pnpm install        rtk npm run <script>
 ```
-
-## Rules
-- In command chains, prefix each segment: `rtk git add . && rtk git commit -m "msg"`
-- For debugging, use raw command without rtk prefix
-- `rtk proxy <cmd>` runs command without filtering but tracks usage
 <!-- /headroom:rtk-instructions -->
+
+<!-- headroom:memory-instructions -->
+## Memory Guidance
+Use the `headroom_memory` MCP server for persistent cross-session knowledge.
+- **Before** answering questions about prior decisions or architecture — call `memory_search` first.
+- **After** making durable decisions or discovering conventions — call `memory_save` to persist them.
