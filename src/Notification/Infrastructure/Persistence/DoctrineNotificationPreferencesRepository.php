@@ -29,7 +29,9 @@ final class DoctrineNotificationPreferencesRepository implements NotificationPre
                 $preferences->refillAlertsEnabled(),
                 $preferences->weeklyStreakSummariesEnabled(),
                 $preferences->createdAt(),
-                $preferences->updatedAt()
+                $preferences->updatedAt(),
+                $preferences->inAppBannersEnabled(),
+                $preferences->reminderMinutesBefore()
             );
             $this->entityManager->persist($entity);
         } else {
@@ -37,6 +39,8 @@ final class DoctrineNotificationPreferencesRepository implements NotificationPre
             $entity->setMissedDoseNudgesEnabled($preferences->missedDoseNudgesEnabled());
             $entity->setRefillAlertsEnabled($preferences->refillAlertsEnabled());
             $entity->setWeeklyStreakSummariesEnabled($preferences->weeklyStreakSummariesEnabled());
+            $entity->setInAppBannersEnabled($preferences->inAppBannersEnabled());
+            $entity->setReminderMinutesBefore($preferences->reminderMinutesBefore());
             $entity->setUpdatedAt($preferences->updatedAt());
         }
 
@@ -60,7 +64,9 @@ final class DoctrineNotificationPreferencesRepository implements NotificationPre
             $entity->isRefillAlertsEnabled(),
             $entity->isWeeklyStreakSummariesEnabled(),
             $entity->getCreatedAt(),
-            $entity->getUpdatedAt()
+            $entity->getUpdatedAt(),
+            $entity->isInAppBannersEnabled(),
+            $entity->getReminderMinutesBefore()
         );
     }
 }

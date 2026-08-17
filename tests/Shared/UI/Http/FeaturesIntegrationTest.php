@@ -4,26 +4,11 @@ declare(strict_types=1);
 
 namespace App\Tests\Shared\UI\Http;
 
-use Shared\Infrastructure\Security\JwtService;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
 use Symfony\Component\HttpFoundation\Response;
 
 final class FeaturesIntegrationTest extends WebTestCase
 {
-    /**
-     * @return array<string, string>
-     */
-    private function createAuthHeaders(string $userId): array
-    {
-        /** @var JwtService $jwtService */
-        $jwtService = self::getContainer()->get(JwtService::class);
-        $token = $jwtService->createToken(['sub' => $userId]);
-        return [
-            'HTTP_AUTHORIZATION' => 'Bearer ' . $token,
-            'CONTENT_TYPE' => 'application/json',
-        ];
-    }
-
     /**
      * @param array<string, mixed> $payload
      */
@@ -77,8 +62,6 @@ final class FeaturesIntegrationTest extends WebTestCase
     public function testCompleteUserJourney(): void
     {
         $client = self::createClient();
-        $userId = 'test-user-uuid-' . bin2hex(random_bytes(4));
-        $headers = $this->createAuthHeaders($userId);
         $scheduleStart = (new \DateTimeImmutable('+1 day'))->setTime(0, 0);
         $scheduleEnd = $scheduleStart->modify('+14 days');
         $doseRangeEnd = $scheduleStart->modify('+4 days');
@@ -86,7 +69,62 @@ final class FeaturesIntegrationTest extends WebTestCase
         $scheduleEndIso = $scheduleEnd->format(\DateTimeInterface::ATOM);
         $doseRangeEndIso = $doseRangeEnd->format(\DateTimeInterface::ATOM);
 
+        // 0. Identity - Google Auth, Microsoft Auth, Get Me, and Refresh Token
+        $client->request(
+            'POST',
+            '/api/v1/auth/google',
+            [],
+            [],
+            ['CONTENT_TYPE' => 'application/json'],
+            $this->encode(['idToken' => 'valid-john@example.com'])
+        );
+        self::assertSame(Response::HTTP_OK, $client->getResponse()->getStatusCode());
+        $authData = $this->decodeResponse($client->getResponse()->getContent());
+        self::assertArrayHasKey('token', $authData);
+        self::assertArrayHasKey('refreshToken', $authData);
+        $authToken = $this->stringValue($authData, 'token');
+        $refreshToken = $this->stringValue($authData, 'refreshToken');
+
+        // Headers generated from real authenticated JWT token
+        $headers = [
+            'HTTP_AUTHORIZATION' => 'Bearer ' . $authToken,
+            'CONTENT_TYPE' => 'application/json',
+        ];
+
+        // Microsoft Auth
+        $client->request(
+            'POST',
+            '/api/v1/auth/microsoft',
+            [],
+            [],
+            ['CONTENT_TYPE' => 'application/json'],
+            $this->encode(['idToken' => 'valid-msjohn@example.com'])
+        );
+        self::assertSame(Response::HTTP_OK, $client->getResponse()->getStatusCode());
+        $msAuthData = $this->decodeResponse($client->getResponse()->getContent());
+        self::assertArrayHasKey('token', $msAuthData);
+
+        // Get Me
+        $client->request('GET', '/api/v1/me', [], [], $headers);
+        self::assertSame(Response::HTTP_OK, $client->getResponse()->getStatusCode());
+        $meData = $this->decodeResponse($client->getResponse()->getContent());
+        self::assertSame('john@example.com', $meData['email']);
+
+        // Refresh Token
+        $client->request(
+            'POST',
+            '/api/v1/auth/refresh',
+            [],
+            [],
+            ['CONTENT_TYPE' => 'application/json'],
+            $this->encode(['refreshToken' => $refreshToken])
+        );
+        self::assertSame(Response::HTTP_OK, $client->getResponse()->getStatusCode());
+        $refreshedAuth = $this->decodeResponse($client->getResponse()->getContent());
+        self::assertArrayHasKey('token', $refreshedAuth);
+
         // 1. Create Profile
+
         $client->request(
             'POST',
             '/api/v1/profiles',
@@ -177,6 +215,26 @@ final class FeaturesIntegrationTest extends WebTestCase
         self::assertSame(Response::HTTP_OK, $client->getResponse()->getStatusCode());
         $medsList = $this->decodeListResponse($client->getResponse()->getContent());
         self::assertNotEmpty($medsList);
+
+        // 5b. Update Medication
+        $client->request(
+            'PATCH',
+            '/api/v1/profiles/' . $profileId . '/medications/' . $medicationId,
+            [],
+            [],
+            $headers,
+            $this->encode([
+                'name' => 'Ibuprofen 600mg',
+                'dosage' => '600mg',
+                'instructions' => 'Take after meals',
+                'photoUrl' => 'https://example.com/ibuprofen-600.jpg',
+            ])
+        );
+        self::assertSame(Response::HTTP_OK, $client->getResponse()->getStatusCode());
+        $updatedMed = $this->decodeResponse($client->getResponse()->getContent());
+        self::assertSame('Ibuprofen 600mg', $updatedMed['name']);
+        self::assertSame('600mg', $updatedMed['dosage']);
+
 
         // 6. Create Daily Schedule
         $scheduleClientId = 'sch-client-uuid-' . bin2hex(random_bytes(4));

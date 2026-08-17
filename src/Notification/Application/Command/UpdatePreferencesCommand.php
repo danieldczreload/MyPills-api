@@ -11,7 +11,9 @@ final class UpdatePreferencesCommand
         public readonly ?bool $doseRemindersEnabled = null,
         public readonly ?bool $missedDoseNudgesEnabled = null,
         public readonly ?bool $refillAlertsEnabled = null,
-        public readonly ?bool $weeklyStreakSummariesEnabled = null
+        public readonly ?bool $weeklyStreakSummariesEnabled = null,
+        public readonly ?bool $inAppBannersEnabled = null,
+        public readonly ?int $reminderMinutesBefore = null
     ) {
     }
 }

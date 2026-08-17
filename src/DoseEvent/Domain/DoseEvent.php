@@ -19,7 +19,8 @@ final class DoseEvent
         private ?\DateTimeImmutable $takenAt,
         private ?string $clientId,
         private readonly \DateTimeImmutable $createdAt,
-        private \DateTimeImmutable $updatedAt
+        private \DateTimeImmutable $updatedAt,
+        private ?\DateTimeImmutable $reminderSentAt = null
     ) {
     }
 
@@ -30,10 +31,11 @@ final class DoseEvent
         \DateTimeImmutable $scheduledAt,
         string $status = 'pending',
         ?\DateTimeImmutable $takenAt = null,
-        ?string $clientId = null
+        ?string $clientId = null,
+        ?\DateTimeImmutable $reminderSentAt = null
     ): self {
         $now = new \DateTimeImmutable();
-        return new self($id, $medicationId, $scheduleId, $scheduledAt, $status, $takenAt, $clientId, $now, $now);
+        return new self($id, $medicationId, $scheduleId, $scheduledAt, $status, $takenAt, $clientId, $now, $now, $reminderSentAt);
     }
 
     public function id(): DoseEventId
@@ -79,6 +81,17 @@ final class DoseEvent
     public function updatedAt(): \DateTimeImmutable
     {
         return $this->updatedAt;
+    }
+
+    public function reminderSentAt(): ?\DateTimeImmutable
+    {
+        return $this->reminderSentAt;
+    }
+
+    public function markReminderSent(\DateTimeImmutable $sentAt): void
+    {
+        $this->reminderSentAt = $sentAt;
+        $this->updatedAt = new \DateTimeImmutable();
     }
 
     public function markAs(string $status, ?\DateTimeImmutable $takenAt = null): void

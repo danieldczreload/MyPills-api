@@ -29,6 +29,12 @@ class NotificationPreferencesDoctrineEntity
     #[ORM\Column(type: 'boolean')]
     private bool $weeklyStreakSummariesEnabled;
 
+    #[ORM\Column(type: 'boolean')]
+    private bool $inAppBannersEnabled;
+
+    #[ORM\Column(type: 'integer')]
+    private int $reminderMinutesBefore;
+
     #[ORM\Column(type: 'datetime_immutable')]
     private \DateTimeImmutable $createdAt;
 
@@ -43,7 +49,9 @@ class NotificationPreferencesDoctrineEntity
         bool $refillAlertsEnabled,
         bool $weeklyStreakSummariesEnabled,
         \DateTimeImmutable $createdAt,
-        \DateTimeImmutable $updatedAt
+        \DateTimeImmutable $updatedAt,
+        bool $inAppBannersEnabled = true,
+        int $reminderMinutesBefore = 0
     ) {
         $this->id = $id;
         $this->accountId = $accountId;
@@ -51,6 +59,8 @@ class NotificationPreferencesDoctrineEntity
         $this->missedDoseNudgesEnabled = $missedDoseNudgesEnabled;
         $this->refillAlertsEnabled = $refillAlertsEnabled;
         $this->weeklyStreakSummariesEnabled = $weeklyStreakSummariesEnabled;
+        $this->inAppBannersEnabled = $inAppBannersEnabled;
+        $this->reminderMinutesBefore = $reminderMinutesBefore;
         $this->createdAt = $createdAt;
         $this->updatedAt = $updatedAt;
     }
@@ -103,6 +113,26 @@ class NotificationPreferencesDoctrineEntity
     public function setWeeklyStreakSummariesEnabled(bool $weeklyStreakSummariesEnabled): void
     {
         $this->weeklyStreakSummariesEnabled = $weeklyStreakSummariesEnabled;
+    }
+
+    public function isInAppBannersEnabled(): bool
+    {
+        return $this->inAppBannersEnabled;
+    }
+
+    public function setInAppBannersEnabled(bool $inAppBannersEnabled): void
+    {
+        $this->inAppBannersEnabled = $inAppBannersEnabled;
+    }
+
+    public function getReminderMinutesBefore(): int
+    {
+        return $this->reminderMinutesBefore;
+    }
+
+    public function setReminderMinutesBefore(int $reminderMinutesBefore): void
+    {
+        $this->reminderMinutesBefore = $reminderMinutesBefore;
     }
 
     public function getCreatedAt(): \DateTimeImmutable

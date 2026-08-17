@@ -34,7 +34,9 @@ final class UpdatePreferencesHandler
             $command->doseRemindersEnabled,
             $command->missedDoseNudgesEnabled,
             $command->refillAlertsEnabled,
-            $command->weeklyStreakSummariesEnabled
+            $command->weeklyStreakSummariesEnabled,
+            $command->inAppBannersEnabled,
+            $command->reminderMinutesBefore
         );
 
         $this->preferencesRepository->save($preferences);
@@ -44,6 +46,8 @@ final class UpdatePreferencesHandler
             'missedDoseNudgesEnabled' => $preferences->missedDoseNudgesEnabled(),
             'refillAlertsEnabled' => $preferences->refillAlertsEnabled(),
             'weeklyStreakSummariesEnabled' => $preferences->weeklyStreakSummariesEnabled(),
+            'inAppBannersEnabled' => $preferences->inAppBannersEnabled(),
+            'reminderMinutesBefore' => $preferences->reminderMinutesBefore(),
         ]);
     }
 }

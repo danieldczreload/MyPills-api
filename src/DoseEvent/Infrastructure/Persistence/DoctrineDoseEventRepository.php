@@ -32,13 +32,15 @@ final class DoctrineDoseEventRepository implements DoseEventRepository
                 $doseEvent->takenAt(),
                 $doseEvent->clientId(),
                 $doseEvent->createdAt(),
-                $doseEvent->updatedAt()
+                $doseEvent->updatedAt(),
+                $doseEvent->reminderSentAt()
             );
             $this->entityManager->persist($entity);
         } else {
             $entity->setStatus($doseEvent->status());
             $entity->setTakenAt($doseEvent->takenAt());
             $entity->setUpdatedAt($doseEvent->updatedAt());
+            $entity->setReminderSentAt($doseEvent->reminderSentAt());
         }
 
         $this->entityManager->flush();
@@ -182,7 +184,8 @@ final class DoctrineDoseEventRepository implements DoseEventRepository
             $entity->getTakenAt(),
             $entity->getClientId(),
             $entity->getCreatedAt(),
-            $entity->getUpdatedAt()
+            $entity->getUpdatedAt(),
+            $entity->getReminderSentAt()
         );
     }
 }

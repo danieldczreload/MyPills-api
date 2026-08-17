@@ -39,6 +39,9 @@ class DoseEventDoctrineEntity
     #[ORM\Column(type: 'datetime_immutable')]
     private \DateTimeImmutable $updatedAt;
 
+    #[ORM\Column(type: 'datetime_immutable', nullable: true)]
+    private ?\DateTimeImmutable $reminderSentAt;
+
     public function __construct(
         string $id,
         string $medicationId,
@@ -48,7 +51,8 @@ class DoseEventDoctrineEntity
         ?\DateTimeImmutable $takenAt,
         ?string $clientId,
         \DateTimeImmutable $createdAt,
-        \DateTimeImmutable $updatedAt
+        \DateTimeImmutable $updatedAt,
+        ?\DateTimeImmutable $reminderSentAt = null
     ) {
         $this->id = $id;
         $this->medicationId = $medicationId;
@@ -59,6 +63,7 @@ class DoseEventDoctrineEntity
         $this->clientId = $clientId;
         $this->createdAt = $createdAt;
         $this->updatedAt = $updatedAt;
+        $this->reminderSentAt = $reminderSentAt;
     }
 
     public function getId(): string
@@ -119,5 +124,15 @@ class DoseEventDoctrineEntity
     public function setUpdatedAt(\DateTimeImmutable $updatedAt): void
     {
         $this->updatedAt = $updatedAt;
+    }
+
+    public function getReminderSentAt(): ?\DateTimeImmutable
+    {
+        return $this->reminderSentAt;
+    }
+
+    public function setReminderSentAt(?\DateTimeImmutable $reminderSentAt): void
+    {
+        $this->reminderSentAt = $reminderSentAt;
     }
 }

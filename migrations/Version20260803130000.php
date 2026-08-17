@@ -16,8 +16,8 @@ final class Version20260803130000 extends AbstractMigration
 
     public function up(Schema $schema): void
     {
-        $this->addSql('ALTER TABLE device_tokens ALTER COLUMN token TYPE TEXT');
-        $this->addSql('ALTER TABLE device_tokens ADD token_hash VARCHAR(64) DEFAULT NULL');
+        $this->connection->executeStatement('ALTER TABLE device_tokens ALTER COLUMN token TYPE TEXT');
+        $this->connection->executeStatement('ALTER TABLE device_tokens ADD IF NOT EXISTS token_hash VARCHAR(64) DEFAULT NULL');
 
         $secret = $this->encryptionSecret();
         $rows = $this->connection->fetchAllAssociative('SELECT id, token FROM device_tokens WHERE token_hash IS NULL');
@@ -32,8 +32,8 @@ final class Version20260803130000 extends AbstractMigration
             ], ['id' => $row['id']]);
         }
 
-        $this->addSql('DROP INDEX UNIQ_794A60955F37A13B');
-        $this->addSql('CREATE UNIQUE INDEX UNIQ_794A6095B3BC57DA ON device_tokens (token_hash)');
+        $this->addSql('DROP INDEX IF EXISTS UNIQ_794A60955F37A13B');
+        $this->addSql('CREATE UNIQUE INDEX IF NOT EXISTS UNIQ_794A6095B3BC57DA ON device_tokens (token_hash)');
         $this->addSql('ALTER TABLE device_tokens ALTER COLUMN token_hash SET NOT NULL');
     }
 

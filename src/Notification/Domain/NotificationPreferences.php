@@ -16,7 +16,9 @@ final class NotificationPreferences
         private bool $refillAlertsEnabled,
         private bool $weeklyStreakSummariesEnabled,
         private readonly \DateTimeImmutable $createdAt,
-        private \DateTimeImmutable $updatedAt
+        private \DateTimeImmutable $updatedAt,
+        private bool $inAppBannersEnabled = true,
+        private int $reminderMinutesBefore = 0
     ) {
     }
 
@@ -28,7 +30,7 @@ final class NotificationPreferences
         $uuid = vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($data), 4));
 
         $now = new \DateTimeImmutable();
-        return new self($uuid, $accountId, true, true, true, true, $now, $now);
+        return new self($uuid, $accountId, true, true, true, true, $now, $now, true, 0);
     }
 
     public function id(): string
@@ -61,6 +63,16 @@ final class NotificationPreferences
         return $this->weeklyStreakSummariesEnabled;
     }
 
+    public function inAppBannersEnabled(): bool
+    {
+        return $this->inAppBannersEnabled;
+    }
+
+    public function reminderMinutesBefore(): int
+    {
+        return $this->reminderMinutesBefore;
+    }
+
     public function createdAt(): \DateTimeImmutable
     {
         return $this->createdAt;
@@ -75,7 +87,9 @@ final class NotificationPreferences
         ?bool $doseRemindersEnabled = null,
         ?bool $missedDoseNudgesEnabled = null,
         ?bool $refillAlertsEnabled = null,
-        ?bool $weeklyStreakSummariesEnabled = null
+        ?bool $weeklyStreakSummariesEnabled = null,
+        ?bool $inAppBannersEnabled = null,
+        ?int $reminderMinutesBefore = null
     ): void {
         if ($doseRemindersEnabled !== null) {
             $this->doseRemindersEnabled = $doseRemindersEnabled;
@@ -88,6 +102,12 @@ final class NotificationPreferences
         }
         if ($weeklyStreakSummariesEnabled !== null) {
             $this->weeklyStreakSummariesEnabled = $weeklyStreakSummariesEnabled;
+        }
+        if ($inAppBannersEnabled !== null) {
+            $this->inAppBannersEnabled = $inAppBannersEnabled;
+        }
+        if ($reminderMinutesBefore !== null) {
+            $this->reminderMinutesBefore = $reminderMinutesBefore;
         }
         $this->updatedAt = new \DateTimeImmutable();
     }

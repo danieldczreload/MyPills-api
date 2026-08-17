@@ -1,0 +1,86 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Notification\Application\Command;
+
+use DoseEvent\Domain\DoseEventRepository;
+use Notification\Domain\DeviceTokenRepository;
+use Notification\Domain\InvalidDeviceToken;
+use Notification\Domain\PushNotificationGateway;
+use Shared\Domain\Result;
+use Shared\Domain\ValueObject\DoseEventId;
+use Shared\Domain\ValueObject\UserId;
+use Symfony\Component\Messenger\Attribute\AsMessageHandler;
+
+#[AsMessageHandler]
+final class SendDoseReminderHandler
+{
+    public function __construct(
+        private readonly DoseEventRepository $doseEventRepository,
+        private readonly DeviceTokenRepository $deviceTokenRepository,
+        private readonly PushNotificationGateway $pushNotificationGateway
+    ) {
+    }
+
+    /**
+     * @return Result<array<string, mixed>>
+     */
+    public function __invoke(SendDoseReminderCommand $command): Result
+    {
+        $doseId = new DoseEventId($command->doseEventId);
+        $dose = $this->doseEventRepository->findById($doseId);
+
+        // Guard: Idempotency & state check
+        if ($dose === null || $dose->status() !== 'pending' || $dose->reminderSentAt() !== null) {
+            return Result::success(['sent' => 0, 'skipped' => true]);
+        }
+
+        // If user disabled both push and in-app, mark sent without broadcasting
+        if (!$command->doseRemindersEnabled && !$command->inAppBannersEnabled) {
+            $dose->markReminderSent(new \DateTimeImmutable());
+            $this->doseEventRepository->save($dose);
+            return Result::success(['sent' => 0, 'disabled' => true]);
+        }
+
+        $devices = $this->deviceTokenRepository->findByAccountId(new UserId($command->accountId));
+        $sent = 0;
+        $failed = 0;
+
+        $title = 'Hora de tu medicación';
+        $body = sprintf('Es hora de tomar %s%s', $command->medicationName, $command->dosage !== '' ? ' (' . $command->dosage . ')' : '');
+
+        $payload = [
+            'type' => 'dose_reminder',
+            'doseEventId' => $command->doseEventId,
+            'medicationName' => $command->medicationName,
+            'dosage' => $command->dosage,
+            'scheduledAt' => $command->scheduledAt->format(\DateTimeInterface::ATOM),
+            'anticipationMinutes' => (string) $command->reminderMinutesBefore,
+            'doseRemindersEnabled' => $command->doseRemindersEnabled ? '1' : '0',
+            'inAppBannersEnabled' => $command->inAppBannersEnabled ? '1' : '0',
+        ];
+
+        foreach ($devices as $device) {
+            try {
+                $this->pushNotificationGateway->send(
+                    $device->token(),
+                    $title,
+                    $body,
+                    $payload
+                );
+                ++$sent;
+            } catch (InvalidDeviceToken) {
+                $this->deviceTokenRepository->delete($device);
+                ++$failed;
+            } catch (\Throwable) {
+                ++$failed;
+            }
+        }
+
+        $dose->markReminderSent(new \DateTimeImmutable());
+        $this->doseEventRepository->save($dose);
+
+        return Result::success(['sent' => $sent, 'failed' => $failed]);
+    }
+}

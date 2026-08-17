@@ -14,10 +14,19 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
+use Notification\Application\Query\GetPreferencesQuery;
 
 #[Route('/api/v1', name: 'api_notification_')]
 final class NotificationController extends ApiController
 {
+    #[Route('/notifications/preferences', name: 'get_preferences', methods: ['GET'])]
+    public function getPreferences(): JsonResponse
+    {
+        $query = new GetPreferencesQuery($this->getAuthenticatedUserId()->value());
+
+        return $this->respond($this->queryBus->ask($query));
+    }
+
     #[Route('/devices', name: 'register_device', methods: ['POST'])]
     public function registerDevice(Request $request): JsonResponse
     {
@@ -94,7 +103,6 @@ final class NotificationController extends ApiController
         return get_object_vars($data);
     }
 
-
     #[Route('/notifications/preferences', name: 'update_preferences', methods: ['PATCH'])]
     public function updatePreferences(Request $request): JsonResponse
     {
@@ -108,7 +116,9 @@ final class NotificationController extends ApiController
             array_key_exists('doseRemindersEnabled', $data) ? (bool) $data['doseRemindersEnabled'] : null,
             array_key_exists('missedDoseNudgesEnabled', $data) ? (bool) $data['missedDoseNudgesEnabled'] : null,
             array_key_exists('refillAlertsEnabled', $data) ? (bool) $data['refillAlertsEnabled'] : null,
-            array_key_exists('weeklyStreakSummariesEnabled', $data) ? (bool) $data['weeklyStreakSummariesEnabled'] : null
+            array_key_exists('weeklyStreakSummariesEnabled', $data) ? (bool) $data['weeklyStreakSummariesEnabled'] : null,
+            array_key_exists('inAppBannersEnabled', $data) ? (bool) $data['inAppBannersEnabled'] : null,
+            array_key_exists('reminderMinutesBefore', $data) && is_numeric($data['reminderMinutesBefore']) ? (int) $data['reminderMinutesBefore'] : null
         );
 
         $result = $this->commandBus->dispatch($command);
