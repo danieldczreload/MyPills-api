@@ -40,6 +40,9 @@ reset-db: ## Drop and recreate database
 test: ## Run PHPUnit tests
 	$(COMPOSE) exec php vendor/bin/simple-phpunit
 
+coverage: ## Run PHPUnit tests with code coverage report
+	$(COMPOSE) exec -e XDEBUG_MODE=coverage php vendor/bin/simple-phpunit --coverage-text
+
 migrate: ## Run database migrations
 	$(COMPOSE) exec php bin/console doctrine:migrations:migrate --no-interaction
 
