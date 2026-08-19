@@ -115,9 +115,6 @@ jobs:
             cd /opt/projects/mypills-api
             git fetch origin main
             git reset --hard origin/main
-            composer install --no-dev --optimize-autoloader --no-interaction
-            php bin/console doctrine:migrations:migrate --no-interaction
-            php bin/console cache:clear
             sudo systemctl reload-or-restart mypills
             echo "✅ MyPills service successfully reloaded!"
             sudo systemctl status mypills --no-pager
