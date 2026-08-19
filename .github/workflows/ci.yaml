@@ -83,6 +83,10 @@ jobs:
           VALIDATE_PHP_BUILTIN: false
           VALIDATE_PHP_PHPSTAN: false
           VALIDATE_PHP_PSALM: false
+          VALIDATE_PHP_CS_FIXER: false
+          VALIDATE_PHP_SNIFFER: false
+          VALIDATE_COMPOSER: false
+          VALIDATE_GIT_COMMITLINT: false
           VALIDATE_JSCPD: false
           VALIDATE_ENV: false
           VALIDATE_YAML_PRETTIER: false
