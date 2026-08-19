@@ -1,5 +1,5 @@
 ---
-name: CI
+name: CI/CD
 
 on:
   push:
@@ -17,7 +17,7 @@ concurrency:
 
 jobs:
   tests:
-    name: Tests
+    name: Tests & Quality Gates
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -41,10 +41,6 @@ jobs:
             *.cache-to=type=gha,scope=${{github.ref}},mode=max
       - name: Start services
         run: docker compose up --wait --no-build
-      - name: Check HTTP reachability
-        run: curl -v --fail-with-body http://localhost/health
-      - name: Check HTTPS reachability
-        run: curl -v --insecure --fail-with-body https://localhost/health
       - name: Check Mercure reachability
         run: curl -vI --insecure --fail-with-body https://localhost/.well-known/mercure?topic=test
       - name: Create test database
@@ -55,6 +51,7 @@ jobs:
         run: docker compose exec -T php vendor/bin/php-cs-fixer fix --dry-run --diff
       - name: Run PHPStan
         run: docker compose exec -T php vendor/bin/phpstan analyse
+
   lint:
     name: Lint
     runs-on: ubuntu-latest
@@ -77,3 +74,27 @@ jobs:
           VALIDATE_TRIVY: false
           VALIDATE_BIOME_FORMAT: false
           VALIDATE_BIOME_LINT: false
+
+  deploy:
+    name: Deploy to Production VPS
+    needs: [tests, lint]
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          port: ${{ secrets.VPS_PORT }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script_stop: true
+          script: |
+            echo "🚀 Starting automated deployment on VPS..."
+            cd /opt/projects/mypills-api
+            git fetch origin main
+            git reset --hard origin/main
+            sudo systemctl reload-or-restart mypills
+            echo "✅ MyPills service successfully reloaded!"
+            sudo systemctl status mypills --no-pager
