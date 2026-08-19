@@ -101,8 +101,9 @@ COPY --link --exclude=frankenphp/ . ./
 RUN <<-EOF
 	mkdir -p var/cache var/log var/share
 	composer dump-autoload --classmap-authoritative --no-dev
-	composer dump-env prod --empty
+	APP_SECRET=build DATABASE_URL=postgresql://app:build@database:5432/app composer dump-env prod
 	composer run-script --no-dev post-install-cmd
+	rm -f .env.local.php
 	if [ -f importmap.php ]; then
 		php bin/console asset-map:compile
 	fi
