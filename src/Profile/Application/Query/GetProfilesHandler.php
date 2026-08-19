@@ -18,7 +18,7 @@ final class GetProfilesHandler
     }
 
     /**
-     * @return Result<array<array{id: string, name: string, birthDate: string, gender: string, photoUrl: ?string, createdAt: string, updatedAt: string}>>
+     * @return Result<array<array{id: string, name: string, birthDate: string, gender: string, photoUrl: ?string, timezone: string, createdAt: string, updatedAt: string}>>
      */
     public function __invoke(GetProfilesQuery $query): Result
     {
@@ -31,6 +31,7 @@ final class GetProfilesHandler
                 'birthDate' => $profile->birthDate()->format(\DateTimeInterface::ATOM),
                 'gender' => $profile->gender(),
                 'photoUrl' => $profile->photoUrl(),
+                'timezone' => $profile->timezone(),
                 'createdAt' => $profile->createdAt()->format(\DateTimeInterface::ATOM),
                 'updatedAt' => $profile->updatedAt()->format(\DateTimeInterface::ATOM),
             ];

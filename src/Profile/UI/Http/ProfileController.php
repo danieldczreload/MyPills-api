@@ -29,7 +29,7 @@ final class ProfileController extends ApiController
     #[Route('/profiles', name: 'create', methods: ['POST'])]
     public function create(Request $request): JsonResponse
     {
-        /** @var array{name?: mixed, birthDate?: mixed, gender?: mixed, photoUrl?: mixed} $data */
+        /** @var array{name?: mixed, birthDate?: mixed, gender?: mixed, photoUrl?: mixed, timezone?: mixed} $data */
         $data = json_decode($request->getContent(), true) ?? [];
 
         $birthDateStr = is_string($data['birthDate'] ?? null) ? $data['birthDate'] : '';
@@ -42,13 +42,15 @@ final class ProfileController extends ApiController
         $name = is_string($data['name'] ?? null) ? $data['name'] : '';
         $gender = is_string($data['gender'] ?? null) ? $data['gender'] : '';
         $photoUrl = isset($data['photoUrl']) && is_string($data['photoUrl']) ? $data['photoUrl'] : null;
+        $timezone = isset($data['timezone']) && is_string($data['timezone']) ? $data['timezone'] : 'UTC';
 
         $command = new CreateProfileCommand(
             $this->getAuthenticatedUserId()->value(),
             $name,
             $birthDate,
             $gender,
-            $photoUrl
+            $photoUrl,
+            $timezone
         );
 
         $result = $this->commandBus->dispatch($command);
@@ -59,7 +61,7 @@ final class ProfileController extends ApiController
     #[Route('/profiles/{id}', name: 'update', methods: ['PATCH'])]
     public function update(string $id, Request $request): JsonResponse
     {
-        /** @var array{name?: mixed, birthDate?: mixed, gender?: mixed, photoUrl?: mixed} $data */
+        /** @var array{name?: mixed, birthDate?: mixed, gender?: mixed, photoUrl?: mixed, timezone?: mixed} $data */
         $data = json_decode($request->getContent(), true) ?? [];
 
         $birthDateStr = is_string($data['birthDate'] ?? null) ? $data['birthDate'] : '';
@@ -72,6 +74,7 @@ final class ProfileController extends ApiController
         $name = is_string($data['name'] ?? null) ? $data['name'] : '';
         $gender = is_string($data['gender'] ?? null) ? $data['gender'] : '';
         $photoUrl = isset($data['photoUrl']) && is_string($data['photoUrl']) ? $data['photoUrl'] : null;
+        $timezone = isset($data['timezone']) && is_string($data['timezone']) ? $data['timezone'] : 'UTC';
 
         $command = new UpdateProfileCommand(
             $id,
@@ -79,7 +82,8 @@ final class ProfileController extends ApiController
             $name,
             $birthDate,
             $gender,
-            $photoUrl
+            $photoUrl,
+            $timezone
         );
 
         $result = $this->commandBus->dispatch($command);

@@ -17,7 +17,8 @@ final class PatientProfile
         private string $gender,
         private ?string $photoUrl,
         private readonly \DateTimeImmutable $createdAt,
-        private \DateTimeImmutable $updatedAt
+        private \DateTimeImmutable $updatedAt,
+        private string $timezone = 'UTC'
     ) {
     }
 
@@ -27,10 +28,11 @@ final class PatientProfile
         string $name,
         \DateTimeImmutable $birthDate,
         string $gender,
-        ?string $photoUrl = null
+        ?string $photoUrl = null,
+        string $timezone = 'UTC'
     ): self {
         $now = new \DateTimeImmutable();
-        return new self($id, $accountId, $name, $birthDate, $gender, $photoUrl, $now, $now);
+        return new self($id, $accountId, $name, $birthDate, $gender, $photoUrl, $now, $now, $timezone);
     }
 
     public function id(): ProfileId
@@ -63,6 +65,11 @@ final class PatientProfile
         return $this->photoUrl;
     }
 
+    public function timezone(): string
+    {
+        return $this->timezone;
+    }
+
     public function createdAt(): \DateTimeImmutable
     {
         return $this->createdAt;
@@ -77,12 +84,14 @@ final class PatientProfile
         string $name,
         \DateTimeImmutable $birthDate,
         string $gender,
-        ?string $photoUrl
+        ?string $photoUrl,
+        string $timezone = 'UTC'
     ): void {
         $this->name = $name;
         $this->birthDate = $birthDate;
         $this->gender = $gender;
         $this->photoUrl = $photoUrl;
+        $this->timezone = $timezone;
         $this->updatedAt = new \DateTimeImmutable();
     }
 }

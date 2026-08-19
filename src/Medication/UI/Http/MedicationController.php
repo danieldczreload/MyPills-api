@@ -29,13 +29,15 @@ final class MedicationController extends ApiController
     #[Route('/profiles/{id}/medications', name: 'create', methods: ['POST'])]
     public function create(string $id, Request $request): JsonResponse
     {
-        /** @var array{name?: mixed, dosage?: mixed, instructions?: mixed, photoUrl?: mixed, clientId?: mixed} $data */
+        /** @var array{name?: mixed, dosage?: mixed, instructions?: mixed, photoUrl?: mixed, clientId?: mixed, form?: mixed, colorToken?: mixed} $data */
         $data = json_decode($request->getContent(), true) ?? [];
         $name = is_string($data['name'] ?? null) ? $data['name'] : '';
         $dosage = is_string($data['dosage'] ?? null) ? $data['dosage'] : '';
         $instructions = isset($data['instructions']) && is_string($data['instructions']) ? $data['instructions'] : null;
         $photoUrl = isset($data['photoUrl']) && is_string($data['photoUrl']) ? $data['photoUrl'] : null;
         $clientId = isset($data['clientId']) && is_string($data['clientId']) ? $data['clientId'] : null;
+        $form = isset($data['form']) && is_string($data['form']) ? $data['form'] : 'pill';
+        $colorToken = isset($data['colorToken']) && is_string($data['colorToken']) ? $data['colorToken'] : 'sky';
 
         $command = new CreateMedicationCommand(
             $id,
@@ -44,7 +46,9 @@ final class MedicationController extends ApiController
             $dosage,
             $instructions,
             $photoUrl,
-            $clientId
+            $clientId,
+            $form,
+            $colorToken
         );
 
         $result = $this->commandBus->dispatch($command);
@@ -55,12 +59,14 @@ final class MedicationController extends ApiController
     #[Route('/profiles/{id}/medications/{mid}', name: 'update', methods: ['PATCH'])]
     public function update(string $id, string $mid, Request $request): JsonResponse
     {
-        /** @var array{name?: mixed, dosage?: mixed, instructions?: mixed, photoUrl?: mixed} $data */
+        /** @var array{name?: mixed, dosage?: mixed, instructions?: mixed, photoUrl?: mixed, form?: mixed, colorToken?: mixed} $data */
         $data = json_decode($request->getContent(), true) ?? [];
         $name = is_string($data['name'] ?? null) ? $data['name'] : '';
         $dosage = is_string($data['dosage'] ?? null) ? $data['dosage'] : '';
         $instructions = isset($data['instructions']) && is_string($data['instructions']) ? $data['instructions'] : null;
         $photoUrl = isset($data['photoUrl']) && is_string($data['photoUrl']) ? $data['photoUrl'] : null;
+        $form = isset($data['form']) && is_string($data['form']) ? $data['form'] : 'pill';
+        $colorToken = isset($data['colorToken']) && is_string($data['colorToken']) ? $data['colorToken'] : 'sky';
 
         $command = new UpdateMedicationCommand(
             $mid,
@@ -69,7 +75,9 @@ final class MedicationController extends ApiController
             $name,
             $dosage,
             $instructions,
-            $photoUrl
+            $photoUrl,
+            $form,
+            $colorToken
         );
 
         $result = $this->commandBus->dispatch($command);

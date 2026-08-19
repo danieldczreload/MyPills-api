@@ -44,7 +44,8 @@
             "Schedule\\": "src/Schedule/",
             "DoseEvent\\": "src/DoseEvent/",
             "Notification\\": "src/Notification/",
-            "CalendarIntegration\\": "src/CalendarIntegration/"
+            "CalendarIntegration\\": "src/CalendarIntegration/",
+            "Taxonomy\\": "src/Taxonomy/"
         }
     },
     "autoload-dev": {

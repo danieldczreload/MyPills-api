@@ -18,7 +18,9 @@ final class Medication
         private ?string $photoUrl,
         private ?string $clientId,
         private readonly \DateTimeImmutable $createdAt,
-        private \DateTimeImmutable $updatedAt
+        private \DateTimeImmutable $updatedAt,
+        private string $form = 'pill',
+        private string $colorToken = 'sky'
     ) {
     }
 
@@ -29,10 +31,12 @@ final class Medication
         string $dosage,
         ?string $instructions = null,
         ?string $photoUrl = null,
-        ?string $clientId = null
+        ?string $clientId = null,
+        string $form = 'pill',
+        string $colorToken = 'sky'
     ): self {
         $now = new \DateTimeImmutable();
-        return new self($id, $profileId, $name, $dosage, $instructions, $photoUrl, $clientId, $now, $now);
+        return new self($id, $profileId, $name, $dosage, $instructions, $photoUrl, $clientId, $now, $now, $form, $colorToken);
     }
 
     public function id(): MedicationId
@@ -70,6 +74,16 @@ final class Medication
         return $this->clientId;
     }
 
+    public function form(): string
+    {
+        return $this->form;
+    }
+
+    public function colorToken(): string
+    {
+        return $this->colorToken;
+    }
+
     public function createdAt(): \DateTimeImmutable
     {
         return $this->createdAt;
@@ -84,12 +98,16 @@ final class Medication
         string $name,
         string $dosage,
         ?string $instructions,
-        ?string $photoUrl
+        ?string $photoUrl,
+        string $form = 'pill',
+        string $colorToken = 'sky'
     ): void {
         $this->name = $name;
         $this->dosage = $dosage;
         $this->instructions = $instructions;
         $this->photoUrl = $photoUrl;
+        $this->form = $form;
+        $this->colorToken = $colorToken;
         $this->updatedAt = new \DateTimeImmutable();
     }
 }

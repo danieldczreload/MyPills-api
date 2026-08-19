@@ -21,7 +21,7 @@ final class GetMedicationsHandler
     }
 
     /**
-     * @return Result<array<array{id: string, profileId: string, name: string, dosage: string, instructions: ?string, photoUrl: ?string, clientId: ?string, createdAt: string, updatedAt: string}>>
+     * @return Result<array<array{id: string, profileId: string, name: string, dosage: string, instructions: ?string, photoUrl: ?string, clientId: ?string, form: string, colorToken: string, createdAt: string, updatedAt: string}>>
      */
     public function __invoke(GetMedicationsQuery $query): Result
     {
@@ -47,6 +47,8 @@ final class GetMedicationsHandler
                 'instructions' => $medication->instructions(),
                 'photoUrl' => $medication->photoUrl(),
                 'clientId' => $medication->clientId(),
+                'form' => $medication->form(),
+                'colorToken' => $medication->colorToken(),
                 'createdAt' => $medication->createdAt()->format(\DateTimeInterface::ATOM),
                 'updatedAt' => $medication->updatedAt()->format(\DateTimeInterface::ATOM),
             ];

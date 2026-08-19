@@ -19,7 +19,7 @@ final class UpdateProfileHandler
     }
 
     /**
-     * @return Result<array{id: string, name: string, birthDate: string, gender: string, photoUrl: ?string, createdAt: string, updatedAt: string}>
+     * @return Result<array{id: string, name: string, birthDate: string, gender: string, photoUrl: ?string, timezone: string, createdAt: string, updatedAt: string}>
      */
     public function __invoke(UpdateProfileCommand $command): Result
     {
@@ -38,7 +38,13 @@ final class UpdateProfileHandler
             return Result::failure(Failure::validation('Profile name cannot be empty.'));
         }
 
-        $profile->update($command->name, $command->birthDate, $command->gender, $command->photoUrl);
+        $profile->update(
+            $command->name,
+            $command->birthDate,
+            $command->gender,
+            $command->photoUrl,
+            $command->timezone
+        );
         $this->profileRepository->save($profile);
 
         return Result::success([
@@ -47,6 +53,7 @@ final class UpdateProfileHandler
             'birthDate' => $profile->birthDate()->format(\DateTimeInterface::ATOM),
             'gender' => $profile->gender(),
             'photoUrl' => $profile->photoUrl(),
+            'timezone' => $profile->timezone(),
             'createdAt' => $profile->createdAt()->format(\DateTimeInterface::ATOM),
             'updatedAt' => $profile->updatedAt()->format(\DateTimeInterface::ATOM),
         ]);

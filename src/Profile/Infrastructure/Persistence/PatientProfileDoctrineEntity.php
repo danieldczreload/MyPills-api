@@ -29,6 +29,9 @@ class PatientProfileDoctrineEntity
     #[ORM\Column(type: 'string', length: 1000, nullable: true)]
     private ?string $photoUrl;
 
+    #[ORM\Column(type: 'string', length: 100, options: ['default' => 'UTC'])]
+    private string $timezone;
+
     #[ORM\Column(type: 'datetime_immutable')]
     private \DateTimeImmutable $createdAt;
 
@@ -42,6 +45,7 @@ class PatientProfileDoctrineEntity
         \DateTimeImmutable $birthDate,
         string $gender,
         ?string $photoUrl,
+        string $timezone,
         \DateTimeImmutable $createdAt,
         \DateTimeImmutable $updatedAt
     ) {
@@ -51,6 +55,7 @@ class PatientProfileDoctrineEntity
         $this->birthDate = $birthDate;
         $this->gender = $gender;
         $this->photoUrl = $photoUrl;
+        $this->timezone = $timezone;
         $this->createdAt = $createdAt;
         $this->updatedAt = $updatedAt;
     }
@@ -103,6 +108,16 @@ class PatientProfileDoctrineEntity
     public function setPhotoUrl(?string $photoUrl): void
     {
         $this->photoUrl = $photoUrl;
+    }
+
+    public function getTimezone(): string
+    {
+        return $this->timezone;
+    }
+
+    public function setTimezone(string $timezone): void
+    {
+        $this->timezone = $timezone;
     }
 
     public function getCreatedAt(): \DateTimeImmutable

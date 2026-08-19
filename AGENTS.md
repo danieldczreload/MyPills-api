@@ -126,3 +126,14 @@ Code, comments, and commits in English.
 - Do not shorten or alter code, logs, error messages, or technical terms.
 - For actions, use: `[target] [action] [reason]. [next step].`
 - Do not omit relevant risks, assumptions, or unresolved issues.
+
+<!-- headroom:rtk-instructions -->
+# CRITICAL: Token Optimization Invariant (RTK)
+
+You MUST prefix ALL shell and terminal commands with `rtk` (e.g., `rtk git status`, `rtk make check`, `rtk ls`, `rtk grep`).
+NEVER execute raw shell commands without `rtk` when calling `run_command` or executing bash tasks.
+
+- If rtk has a specialized filter (git, ls, test, lint, cargo, tsc, etc.), it cuts context by 60-90%.
+- If rtk has no specialized filter (e.g. `rtk make ...`), it passes the command through unchanged with 0% risk.
+- Therefore, always prepend `rtk` to every single terminal command.
+<!-- /headroom:rtk-instructions -->

@@ -32,6 +32,7 @@ final class SyncProfileHandlerTest extends TestCase
     private ScheduleRepository&MockObject $scheduleRepo;
     private DoseEventRepository&MockObject $doseEventRepo;
     private TombstoneRepository&MockObject $tombstoneRepo;
+    private \Taxonomy\Domain\TaxonomyGroupRepository&MockObject $taxonomyRepo;
     private SyncProfileHandler $handler;
 
     protected function setUp(): void
@@ -41,13 +42,15 @@ final class SyncProfileHandlerTest extends TestCase
         $this->scheduleRepo = $this->createMock(ScheduleRepository::class);
         $this->doseEventRepo = $this->createMock(DoseEventRepository::class);
         $this->tombstoneRepo = $this->createMock(TombstoneRepository::class);
+        $this->taxonomyRepo = $this->createMock(\Taxonomy\Domain\TaxonomyGroupRepository::class);
 
         $this->handler = new SyncProfileHandler(
             $this->profileRepo,
             $this->medicationRepo,
             $this->scheduleRepo,
             $this->doseEventRepo,
-            $this->tombstoneRepo
+            $this->tombstoneRepo,
+            $this->taxonomyRepo
         );
     }
 

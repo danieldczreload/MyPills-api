@@ -53,6 +53,10 @@ services:
             $secret: '%token_vault.secret%'
             $previousSecrets: '%token_vault.previous_secrets%'
 
+    Shared\Infrastructure\Storage\FileUploadService:
+        arguments:
+            $projectDir: '%kernel.project_dir%'
+
     Identity\:
         resource: '../src/Identity/'
         exclude:
@@ -88,6 +92,11 @@ services:
         exclude:
             - '../src/CalendarIntegration/Domain/'
 
+    Taxonomy\:
+        resource: '../src/Taxonomy/'
+        exclude:
+            - '../src/Taxonomy/Domain/'
+
     # add more service definitions when explicit configuration is needed
     # please note that last definitions always *replace* previous ones
 
@@ -109,6 +118,7 @@ services:
     CalendarIntegration\Domain\CalendarLinkRepository: '@CalendarIntegration\Infrastructure\Persistence\DoctrineCalendarLinkRepository'
     CalendarIntegration\Domain\CalendarEventMappingRepository: '@CalendarIntegration\Infrastructure\Persistence\DoctrineCalendarEventMappingRepository'
     CalendarIntegration\Domain\CalendarAuthorizationRequestRepository: '@CalendarIntegration\Infrastructure\Persistence\DoctrineCalendarAuthorizationRequestRepository'
+    Taxonomy\Domain\TaxonomyGroupRepository: '@Taxonomy\Infrastructure\Persistence\DoctrineTaxonomyGroupRepository'
 
     Identity\Infrastructure\Security\HttpGoogleIdentityProvider:
         arguments:

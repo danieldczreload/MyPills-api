@@ -11,7 +11,8 @@ final class CreateProfileCommand
         public readonly string $name,
         public readonly \DateTimeImmutable $birthDate,
         public readonly string $gender,
-        public readonly ?string $photoUrl = null
+        public readonly ?string $photoUrl = null,
+        public readonly string $timezone = 'UTC'
     ) {
     }
 }

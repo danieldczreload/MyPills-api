@@ -23,7 +23,7 @@ final class CreateMedicationHandler
     }
 
     /**
-     * @return Result<array{id: string, profileId: string, name: string, dosage: string, instructions: ?string, photoUrl: ?string, clientId: ?string, createdAt: string, updatedAt: string}>
+     * @return Result<array{id: string, profileId: string, name: string, dosage: string, instructions: ?string, photoUrl: ?string, clientId: ?string, form: string, colorToken: string, createdAt: string, updatedAt: string}>
      */
     public function __invoke(CreateMedicationCommand $command): Result
     {
@@ -58,6 +58,8 @@ final class CreateMedicationHandler
                     'instructions' => $existing->instructions(),
                     'photoUrl' => $existing->photoUrl(),
                     'clientId' => $existing->clientId(),
+                    'form' => $existing->form(),
+                    'colorToken' => $existing->colorToken(),
                     'createdAt' => $existing->createdAt()->format(\DateTimeInterface::ATOM),
                     'updatedAt' => $existing->updatedAt()->format(\DateTimeInterface::ATOM),
                 ]);
@@ -71,7 +73,9 @@ final class CreateMedicationHandler
             $command->dosage,
             $command->instructions,
             $command->photoUrl,
-            $command->clientId
+            $command->clientId,
+            $command->form,
+            $command->colorToken
         );
 
         $this->medicationRepository->save($medication);
@@ -84,6 +88,8 @@ final class CreateMedicationHandler
             'instructions' => $medication->instructions(),
             'photoUrl' => $medication->photoUrl(),
             'clientId' => $medication->clientId(),
+            'form' => $medication->form(),
+            'colorToken' => $medication->colorToken(),
             'createdAt' => $medication->createdAt()->format(\DateTimeInterface::ATOM),
             'updatedAt' => $medication->updatedAt()->format(\DateTimeInterface::ATOM),
         ]);

@@ -22,7 +22,7 @@ final class UpdateMedicationHandler
     }
 
     /**
-     * @return Result<array{id: string, profileId: string, name: string, dosage: string, instructions: ?string, photoUrl: ?string, clientId: ?string, createdAt: string, updatedAt: string}>
+     * @return Result<array{id: string, profileId: string, name: string, dosage: string, instructions: ?string, photoUrl: ?string, clientId: ?string, form: string, colorToken: string, createdAt: string, updatedAt: string}>
      */
     public function __invoke(UpdateMedicationCommand $command): Result
     {
@@ -56,7 +56,14 @@ final class UpdateMedicationHandler
             return Result::failure(Failure::validation('Dosage cannot be empty.'));
         }
 
-        $medication->update($command->name, $command->dosage, $command->instructions, $command->photoUrl);
+        $medication->update(
+            $command->name,
+            $command->dosage,
+            $command->instructions,
+            $command->photoUrl,
+            $command->form,
+            $command->colorToken
+        );
         $this->medicationRepository->save($medication);
 
         return Result::success([
@@ -67,6 +74,8 @@ final class UpdateMedicationHandler
             'instructions' => $medication->instructions(),
             'photoUrl' => $medication->photoUrl(),
             'clientId' => $medication->clientId(),
+            'form' => $medication->form(),
+            'colorToken' => $medication->colorToken(),
             'createdAt' => $medication->createdAt()->format(\DateTimeInterface::ATOM),
             'updatedAt' => $medication->updatedAt()->format(\DateTimeInterface::ATOM),
         ]);

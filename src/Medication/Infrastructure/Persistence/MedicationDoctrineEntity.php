@@ -33,6 +33,12 @@ class MedicationDoctrineEntity
     #[ORM\Column(type: 'string', length: 36, nullable: true)]
     private ?string $clientId;
 
+    #[ORM\Column(type: 'string', length: 32, options: ['default' => 'pill'])]
+    private string $form;
+
+    #[ORM\Column(type: 'string', length: 80, options: ['default' => 'sky'])]
+    private string $colorToken;
+
     #[ORM\Column(type: 'datetime_immutable')]
     private \DateTimeImmutable $createdAt;
 
@@ -47,6 +53,8 @@ class MedicationDoctrineEntity
         ?string $instructions,
         ?string $photoUrl,
         ?string $clientId,
+        string $form,
+        string $colorToken,
         \DateTimeImmutable $createdAt,
         \DateTimeImmutable $updatedAt
     ) {
@@ -57,6 +65,8 @@ class MedicationDoctrineEntity
         $this->instructions = $instructions;
         $this->photoUrl = $photoUrl;
         $this->clientId = $clientId;
+        $this->form = $form;
+        $this->colorToken = $colorToken;
         $this->createdAt = $createdAt;
         $this->updatedAt = $updatedAt;
     }
@@ -114,6 +124,26 @@ class MedicationDoctrineEntity
     public function getClientId(): ?string
     {
         return $this->clientId;
+    }
+
+    public function getForm(): string
+    {
+        return $this->form;
+    }
+
+    public function setForm(string $form): void
+    {
+        $this->form = $form;
+    }
+
+    public function getColorToken(): string
+    {
+        return $this->colorToken;
+    }
+
+    public function setColorToken(string $colorToken): void
+    {
+        $this->colorToken = $colorToken;
     }
 
     public function getCreatedAt(): \DateTimeImmutable

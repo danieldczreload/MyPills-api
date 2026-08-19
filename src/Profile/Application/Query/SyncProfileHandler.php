@@ -18,6 +18,7 @@ use Shared\Domain\Result;
 use Shared\Domain\Failure;
 use Shared\Domain\ValueObject\ProfileId;
 use Symfony\Component\Messenger\Attribute\AsMessageHandler;
+use Taxonomy\Domain\TaxonomyGroupRepository;
 
 #[AsMessageHandler]
 final class SyncProfileHandler
@@ -27,7 +28,8 @@ final class SyncProfileHandler
         private readonly MedicationRepository $medicationRepository,
         private readonly ScheduleRepository $scheduleRepository,
         private readonly DoseEventRepository $doseEventRepository,
-        private readonly TombstoneRepository $tombstoneRepository
+        private readonly TombstoneRepository $tombstoneRepository,
+        private readonly TaxonomyGroupRepository $taxonomyGroupRepository
     ) {
     }
 
@@ -36,6 +38,7 @@ final class SyncProfileHandler
      *     medications: array<array<string, mixed>>,
      *     schedules: array<array<string, mixed>>,
      *     doseEvents: array<array<string, mixed>>,
+     *     taxonomyGroups: array<array<string, mixed>>,
      *     tombstones: array<array{id: string, type: string, deletedAt: string}>
      * }>
      */
@@ -67,6 +70,8 @@ final class SyncProfileHandler
                 'instructions' => $medication->instructions(),
                 'photoUrl' => $medication->photoUrl(),
                 'clientId' => $medication->clientId(),
+                'form' => $medication->form(),
+                'colorToken' => $medication->colorToken(),
                 'createdAt' => $medication->createdAt()->format(\DateTimeInterface::ATOM),
                 'updatedAt' => $medication->updatedAt()->format(\DateTimeInterface::ATOM),
             ];
@@ -129,7 +134,29 @@ final class SyncProfileHandler
             ];
         }, $filteredDoseEvents);
 
-        // 4. Fetch Tombstones
+        // 4. Fetch TaxonomyGroups
+        $taxonomyGroups = $this->taxonomyGroupRepository->findByProfileId($profileId);
+        $filteredTaxonomies = array_filter(
+            $taxonomyGroups,
+            fn ($tax) => $tax->updatedAt() >= $query->since
+        );
+        $formattedTaxonomies = array_map(static function ($tax) {
+            return [
+                'id' => $tax->id()->value(),
+                'profileId' => $tax->profileId()->value(),
+                'type' => $tax->type(),
+                'name' => $tax->name(),
+                'description' => $tax->description(),
+                'iconName' => $tax->iconName(),
+                'colorValue' => $tax->colorValue(),
+                'isCustom' => $tax->isCustom(),
+                'clientId' => $tax->clientId(),
+                'createdAt' => $tax->createdAt()->format(\DateTimeInterface::ATOM),
+                'updatedAt' => $tax->updatedAt()->format(\DateTimeInterface::ATOM),
+            ];
+        }, $filteredTaxonomies);
+
+        // 5. Fetch Tombstones
         $tombstones = $this->tombstoneRepository->findByProfileIdSince($profileId, $query->since);
         $formattedTombstones = array_map(static function ($t) {
             return [
@@ -143,6 +170,7 @@ final class SyncProfileHandler
             'medications' => array_values($formattedMedications),
             'schedules' => array_values($formattedSchedules),
             'doseEvents' => array_values($formattedDoseEvents),
+            'taxonomyGroups' => array_values($formattedTaxonomies),
             'tombstones' => array_values($formattedTombstones),
         ]);
     }

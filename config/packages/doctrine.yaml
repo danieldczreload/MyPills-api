@@ -56,6 +56,12 @@ doctrine:
                 dir: '%kernel.project_dir%/src/CalendarIntegration/Infrastructure/Persistence'
                 prefix: 'CalendarIntegration\Infrastructure\Persistence'
                 alias: CalendarIntegration
+            Taxonomy:
+                type: attribute
+                is_bundle: false
+                dir: '%kernel.project_dir%/src/Taxonomy/Infrastructure/Persistence'
+                prefix: 'Taxonomy\Infrastructure\Persistence'
+                alias: Taxonomy
 
 when@test:
     doctrine:

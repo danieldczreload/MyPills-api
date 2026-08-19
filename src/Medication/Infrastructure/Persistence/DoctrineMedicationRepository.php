@@ -30,6 +30,8 @@ final class DoctrineMedicationRepository implements MedicationRepository
                 $medication->instructions(),
                 $medication->photoUrl(),
                 $medication->clientId(),
+                $medication->form(),
+                $medication->colorToken(),
                 $medication->createdAt(),
                 $medication->updatedAt()
             );
@@ -39,6 +41,8 @@ final class DoctrineMedicationRepository implements MedicationRepository
             $entity->setDosage($medication->dosage());
             $entity->setInstructions($medication->instructions());
             $entity->setPhotoUrl($medication->photoUrl());
+            $entity->setForm($medication->form());
+            $entity->setColorToken($medication->colorToken());
             $entity->setUpdatedAt($medication->updatedAt());
         }
 
@@ -98,7 +102,9 @@ final class DoctrineMedicationRepository implements MedicationRepository
             $entity->getPhotoUrl(),
             $entity->getClientId(),
             $entity->getCreatedAt(),
-            $entity->getUpdatedAt()
+            $entity->getUpdatedAt(),
+            $entity->getForm(),
+            $entity->getColorToken()
         );
     }
 }

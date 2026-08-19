@@ -29,6 +29,7 @@ final class DoctrineProfileRepository implements ProfileRepository
                 $profile->birthDate(),
                 $profile->gender(),
                 $profile->photoUrl(),
+                $profile->timezone(),
                 $profile->createdAt(),
                 $profile->updatedAt()
             );
@@ -38,6 +39,7 @@ final class DoctrineProfileRepository implements ProfileRepository
             $entity->setBirthDate($profile->birthDate());
             $entity->setGender($profile->gender());
             $entity->setPhotoUrl($profile->photoUrl());
+            $entity->setTimezone($profile->timezone());
             $entity->setUpdatedAt($profile->updatedAt());
         }
 
@@ -84,7 +86,8 @@ final class DoctrineProfileRepository implements ProfileRepository
             $entity->getGender(),
             $entity->getPhotoUrl(),
             $entity->getCreatedAt(),
-            $entity->getUpdatedAt()
+            $entity->getUpdatedAt(),
+            $entity->getTimezone()
         );
     }
 }

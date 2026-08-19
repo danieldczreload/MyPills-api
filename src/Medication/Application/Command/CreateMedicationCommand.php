@@ -13,7 +13,9 @@ final class CreateMedicationCommand
         public readonly string $dosage,
         public readonly ?string $instructions = null,
         public readonly ?string $photoUrl = null,
-        public readonly ?string $clientId = null
+        public readonly ?string $clientId = null,
+        public readonly string $form = 'pill',
+        public readonly string $colorToken = 'sky'
     ) {
     }
 }

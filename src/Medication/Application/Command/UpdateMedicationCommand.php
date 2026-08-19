@@ -13,7 +13,9 @@ final class UpdateMedicationCommand
         public readonly string $name,
         public readonly string $dosage,
         public readonly ?string $instructions = null,
-        public readonly ?string $photoUrl = null
+        public readonly ?string $photoUrl = null,
+        public readonly string $form = 'pill',
+        public readonly string $colorToken = 'sky'
     ) {
     }
 }
