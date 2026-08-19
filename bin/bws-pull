@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# bin/bws-pull - Pull secrets from Bitwarden Secrets Manager into .env.local
+
+PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ENV_LOCAL="${PROJECT_DIR}/.env.local"
+
+export PATH="${HOME}/.local/bin:${PATH}"
+
+if ! command -v bws &> /dev/null; then
+    echo "❌ Error: 'bws' CLI is not found in PATH."
+    echo "Install it or add ~/.local/bin to PATH."
+    exit 1
+fi
+
+if [[ -z "${BWS_ACCESS_TOKEN:-}" ]] && command -v secret-tool &> /dev/null; then
+    BWS_ACCESS_TOKEN="$(secret-tool lookup service bws account mypills-local 2>/dev/null || true)"
+    if [[ -n "${BWS_ACCESS_TOKEN}" ]]; then
+        export BWS_ACCESS_TOKEN
+    fi
+fi
+
+if [[ -z "${BWS_ACCESS_TOKEN:-}" ]] && [[ -f "${HOME}/.bws_token" ]]; then
+    BWS_ACCESS_TOKEN="$(cat "${HOME}/.bws_token" | tr -d '\r\n')"
+    export BWS_ACCESS_TOKEN
+fi
+
+if [[ -z "${BWS_ACCESS_TOKEN:-}" ]]; then
+    echo "❌ Error: BWS_ACCESS_TOKEN is not found."
+    echo "Store it securely in your keyring:"
+    echo "  secret-tool store --label=\"BWS MyPills Token\" service bws account mypills-local"
+    echo "or export it in your shell: export BWS_ACCESS_TOKEN=\"your-token\""
+    exit 1
+fi
+
+echo "🔄 Fetching secrets from Bitwarden Secrets Manager..."
+
+TEMP_ENV="$(mktemp)"
+trap 'rm -f "${TEMP_ENV}"' EXIT
+
+bws secret list -o env > "${TEMP_ENV}"
+
+if [[ ! -s "${TEMP_ENV}" ]]; then
+    echo "⚠️ Warning: No secrets returned from Bitwarden Secrets Manager. Check your BWS_ACCESS_TOKEN permissions."
+    exit 1
+fi
+
+install -m 600 "${TEMP_ENV}" "${ENV_LOCAL}"
+
+echo "✅ Secrets successfully synced to .env.local (permissions: 600)."

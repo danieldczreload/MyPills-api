@@ -1,0 +1,35 @@
+---
+name: Deploy Production
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy to VPS
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          port: ${{ secrets.VPS_PORT }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script_stop: true
+          script: |
+            echo "🚀 Starting deployment on VPS..."
+            cd /opt/projects/mypills-api
+            git fetch origin main
+            git reset --hard origin/main
+            sudo systemctl reload-or-restart mypills
+            echo "✅ MyPills service successfully reloaded/restarted!"
+            sudo systemctl status mypills --no-pager

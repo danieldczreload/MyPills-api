@@ -1,7 +1,18 @@
-.PHONY: up down sh logs db reset-db test migrate cs stan help
+.PHONY: up down sh logs db reset-db test migrate cs stan help secrets-pull secrets-clean
+
+export PATH := $(HOME)/.local/bin:$(PATH)
+
+BWS_TOKEN ?= $(shell (secret-tool lookup service bws account mypills-local 2>/dev/null || (test -f $(HOME)/.bws_token && cat $(HOME)/.bws_token 2>/dev/null)) | tr -d '\r\n')
+BWS_EXEC = $(if $(BWS_TOKEN),BWS_ACCESS_TOKEN=$(BWS_TOKEN) bws run --,$(if $(BWS_ACCESS_TOKEN),bws run --,))
 
 COMPOSE_ENV_FILE ?= $(if $(wildcard .env.local),.env.local,.env)
-COMPOSE = docker compose --env-file $(COMPOSE_ENV_FILE)
+COMPOSE = $(BWS_EXEC) docker compose --env-file $(COMPOSE_ENV_FILE)
+
+secrets-pull: ## Fetch secrets from Bitwarden Secrets Manager into .env.local
+	@./bin/bws-pull
+
+secrets-clean: ## Remove .env.local securely
+	@rm -f .env.local && echo "🧹 Removed .env.local"
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-15s\033[0m %s\n", $$1, $$2}'
