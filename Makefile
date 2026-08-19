@@ -1,4 +1,4 @@
-.PHONY: up down sh logs db reset-db test migrate cs stan help secrets-pull secrets-clean
+.PHONY: up down sh logs db reset-db test migrate cs stan lint check help secrets-pull secrets-clean
 
 export PATH := $(HOME)/.local/bin:$(PATH)
 
@@ -48,3 +48,10 @@ cs: ## Run PHP CS Fixer
 
 stan: ## Run PHPStan
 	$(COMPOSE) exec php vendor/bin/phpstan analyse --memory-limit=-1
+
+lint: ## Run Symfony container, YAML and Doctrine schema linters
+	$(COMPOSE) exec php bin/console lint:container
+	$(COMPOSE) exec php bin/console lint:yaml config --parse-tags
+	$(COMPOSE) exec php bin/console doctrine:schema:validate --skip-sync
+
+check: lint cs stan test ## Run all quality gates (lint, cs, stan, test)
