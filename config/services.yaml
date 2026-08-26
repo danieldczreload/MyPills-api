@@ -8,9 +8,9 @@
 # https://symfony.com/doc/current/best_practices.html#use-parameters-for-application-configuration
 parameters:
     environment.empty_string: ''
-    environment.dev_google_client_id: 'mypills-dev-client-id.apps.googleusercontent.com'
+    environment.dev_google_client_id: '583477896483-8061qrld7nh240st439768dplhsggq73.apps.googleusercontent.com' # Android PKCE public (no secret)
     environment.dev_google_redirect_uri: 'com.mypills.app://auth'
-    environment.dev_microsoft_client_id: 'mypills-dev-microsoft-client-id'
+    environment.dev_microsoft_client_id: '8027869b-ea6c-4e17-ba11-ac3b64d531e6'
     environment.dev_microsoft_redirect_uri: 'com.mypills.app://auth'
     google.client_id: '%env(default:environment.dev_google_client_id:GOOGLE_CLIENT_ID)%'
     google.client_secret: '%env(default:environment.empty_string:GOOGLE_CLIENT_SECRET)%'
