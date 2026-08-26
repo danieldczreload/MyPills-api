@@ -59,7 +59,7 @@ abstract class ApiController extends AbstractController
             'UNAUTHORIZED' => Response::HTTP_UNAUTHORIZED,
             'FORBIDDEN' => Response::HTTP_FORBIDDEN,
             'CONFLICT' => Response::HTTP_CONFLICT,
-            'BAD_REQUEST' => Response::HTTP_BAD_REQUEST,
+            'BAD_REQUEST', 'SYNC_PARTIAL_FAILURE' => Response::HTTP_BAD_REQUEST,
             default => Response::HTTP_INTERNAL_SERVER_ERROR,
         };
 

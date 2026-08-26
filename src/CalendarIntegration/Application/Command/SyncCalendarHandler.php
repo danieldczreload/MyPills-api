@@ -38,7 +38,7 @@ final class SyncCalendarHandler
     }
 
     /**
-     * @return Result<null>
+     * @return Result<array{eventsCreated: int, eventsUpdated: int, linksSynced: int, skipped: array<int, array{profileId: string, reason: string}>}>
      */
     public function __invoke(SyncCalendarCommand $command): Result
     {
@@ -63,6 +63,10 @@ final class SyncCalendarHandler
         $now = new \DateTimeImmutable();
         $to = $now->modify('+14 days');
         $linkFailures = [];
+        $skipped = [];
+        $eventsCreated = 0;
+        $eventsUpdated = 0;
+        $linksSynced = 0;
 
         foreach ($profiles as $profile) {
             $links = $this->calendarLinkRepository->findByProfile($profile->id());
@@ -72,6 +76,9 @@ final class SyncCalendarHandler
 
             $medications = $this->medicationRepository->findByProfileId($profile->id());
             if (count($medications) === 0) {
+                foreach ($links as $link) {
+                    $skipped[] = ['profileId' => $profile->id()->value(), 'reason' => 'NO_MEDICATIONS'];
+                }
                 continue;
             }
 
@@ -85,15 +92,32 @@ final class SyncCalendarHandler
             $scheduleIds = array_map(static fn ($sch) => $sch->id(), $schedules);
 
             if (count($scheduleIds) === 0) {
+                foreach ($links as $link) {
+                    $skipped[] = ['profileId' => $profile->id()->value(), 'reason' => 'NO_SCHEDULES'];
+                }
                 continue;
             }
 
             $doseEvents = $this->doseEventRepository->findByScheduleIdsAndRange($scheduleIds, $now, $to);
+            if (count($doseEvents) === 0) {
+                foreach ($links as $link) {
+                    $skipped[] = ['profileId' => $profile->id()->value(), 'reason' => 'NO_UPCOMING_DOSE_EVENTS'];
+                }
+                continue;
+            }
 
             foreach ($links as $link) {
-                $linkFailure = $this->syncLink($link, $doseEvents, $medicationMap);
+                $linkFailure = $this->syncLink(
+                    $link,
+                    $doseEvents,
+                    $medicationMap,
+                    $eventsCreated,
+                    $eventsUpdated
+                );
                 if ($linkFailure !== null) {
                     $linkFailures[] = $linkFailure;
+                } else {
+                    ++$linksSynced;
                 }
             }
         }
@@ -102,20 +126,32 @@ final class SyncCalendarHandler
             return Result::failure(Failure::custom(
                 'SYNC_PARTIAL_FAILURE',
                 'Some calendar connections could not be synchronized.',
-                ['links' => $linkFailures]
+                [
+                    'links' => $linkFailures,
+                    'eventsCreated' => $eventsCreated,
+                    'eventsUpdated' => $eventsUpdated,
+                    'linksSynced' => $linksSynced,
+                ]
             ));
         }
 
-        return Result::success();
+        return Result::success([
+            'eventsCreated' => $eventsCreated,
+            'eventsUpdated' => $eventsUpdated,
+            'linksSynced' => $linksSynced,
+            'skipped' => $skipped,
+        ]);
     }
 
     /**
      * @param \DoseEvent\Domain\DoseEvent[] $doseEvents
      * @param array<string, \Medication\Domain\Medication> $medicationMap
+     * @param-out int $eventsCreated
+     * @param-out int $eventsUpdated
      *
      * @return array{provider: string, reason: string}|null Per-link failure detail, null on success.
      */
-    private function syncLink(CalendarLink $link, array $doseEvents, array $medicationMap): ?array
+    private function syncLink(CalendarLink $link, array $doseEvents, array $medicationMap, int &$eventsCreated, int &$eventsUpdated): ?array
     {
         if ($link->status() === CalendarLinkStatus::REAUTH_REQUIRED) {
             return $this->reauthRequired($link);
@@ -192,9 +228,11 @@ final class SyncCalendarHandler
                 );
                 $mappings[$mappingKey] = $mapping;
                 $this->mappingRepository->save($mapping);
+                ++$eventsCreated;
             } elseif ($mapping->externalEventId() !== $externalEventId) {
                 $mapping->updateExternalEventId($externalEventId);
                 $this->mappingRepository->save($mapping);
+                ++$eventsUpdated;
             }
         }
 
