@@ -15,6 +15,11 @@ interface CalendarEventMappingRepository
     /**
      * @return CalendarEventMapping[]
      */
+    public function findByDoseEventId(string $doseEventId): array;
+
+    /**
+     * @return CalendarEventMapping[]
+     */
     public function findByProfileAndProvider(ProfileId $profileId, string $provider): array;
 
     /**
@@ -23,6 +28,13 @@ interface CalendarEventMappingRepository
      * @return array<string, CalendarEventMapping> Keyed by "<doseEventId>:<provider>".
      */
     public function findByDoseEvents(array $doseEventIds, string $provider): array;
+
+    /**
+     * @param string[] $doseEventIds
+     *
+     * @return CalendarEventMapping[]
+     */
+    public function findByDoseEventIds(array $doseEventIds): array;
 
     public function flush(): void;
 

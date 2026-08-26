@@ -84,4 +84,32 @@ final class DoseEventController extends ApiController
 
         return $this->respond($result);
     }
+
+    #[Route('/profiles/{id}/dose-events/{doseEventId}/cancel', name: 'cancel', methods: ['POST', 'DELETE'])]
+    public function cancel(string $id, string $doseEventId, Request $request): JsonResponse
+    {
+        /** @var array<string, mixed> $data */
+        $data = [];
+        if ($request->getContent() !== '') {
+            $decoded = json_decode($request->getContent(), true);
+            if (is_array($decoded)) {
+                $data = $decoded;
+            }
+        }
+
+        $cancelPush = !array_key_exists('cancelPush', $data) || (bool) $data['cancelPush'];
+        $cancelCalendar = !array_key_exists('cancelCalendar', $data) || (bool) $data['cancelCalendar'];
+
+        $command = new \Notification\Application\Command\CancelNotificationCommand(
+            $id,
+            $this->getAuthenticatedUserId()->value(),
+            $doseEventId,
+            $cancelPush,
+            $cancelCalendar
+        );
+
+        $result = $this->commandBus->dispatch($command);
+
+        return $this->respond($result);
+    }
 }

@@ -125,4 +125,96 @@ final class NotificationController extends ApiController
 
         return $this->respond($result);
     }
+
+    #[Route('/profiles/{id}/notifications/{doseEventId}/cancel', name: 'cancel_notification', methods: ['POST', 'DELETE'])]
+    public function cancelNotification(string $id, string $doseEventId, Request $request): JsonResponse
+    {
+        $data = [];
+        if ($request->getContent() !== '') {
+            $decoded = $this->decodeObject($request);
+            if ($decoded instanceof JsonResponse) {
+                return $decoded;
+            }
+            $data = $decoded;
+        }
+
+        $cancelPush = !array_key_exists('cancelPush', $data) || (bool) $data['cancelPush'];
+        $cancelCalendar = !array_key_exists('cancelCalendar', $data) || (bool) $data['cancelCalendar'];
+
+        $command = new \Notification\Application\Command\CancelNotificationCommand(
+            $id,
+            $this->getAuthenticatedUserId()->value(),
+            $doseEventId,
+            $cancelPush,
+            $cancelCalendar
+        );
+
+        $result = $this->commandBus->dispatch($command);
+
+        return $this->respond($result);
+    }
+
+    #[Route('/profiles/{id}/notifications/cancel-recurring', name: 'cancel_recurring_notifications', methods: ['POST'])]
+    public function cancelRecurringNotifications(string $id, Request $request): JsonResponse
+    {
+        $data = [];
+        if ($request->getContent() !== '') {
+            $decoded = $this->decodeObject($request);
+            if ($decoded instanceof JsonResponse) {
+                return $decoded;
+            }
+            $data = $decoded;
+        }
+
+        $scheduleId = is_string($data['scheduleId'] ?? null) && $data['scheduleId'] !== '' ? $data['scheduleId'] : null;
+        $medicationId = is_string($data['medicationId'] ?? null) && $data['medicationId'] !== '' ? $data['medicationId'] : null;
+        $cancelPush = !array_key_exists('cancelPush', $data) || (bool) $data['cancelPush'];
+        $cancelCalendar = !array_key_exists('cancelCalendar', $data) || (bool) $data['cancelCalendar'];
+        $deleteSchedule = array_key_exists('deleteSchedule', $data) && (bool) $data['deleteSchedule'];
+
+        $command = new \Notification\Application\Command\CancelRecurringNotificationsCommand(
+            $id,
+            $this->getAuthenticatedUserId()->value(),
+            $scheduleId,
+            $medicationId,
+            $cancelPush,
+            $cancelCalendar,
+            $deleteSchedule
+        );
+
+        $result = $this->commandBus->dispatch($command);
+
+        return $this->respond($result);
+    }
+
+    #[Route('/profiles/{id}/schedules/{sid}/cancel-recurring', name: 'cancel_schedule_recurring_notifications', methods: ['POST', 'DELETE'])]
+    public function cancelScheduleRecurringNotifications(string $id, string $sid, Request $request): JsonResponse
+    {
+        $data = [];
+        if ($request->getContent() !== '') {
+            $decoded = $this->decodeObject($request);
+            if ($decoded instanceof JsonResponse) {
+                return $decoded;
+            }
+            $data = $decoded;
+        }
+
+        $cancelPush = !array_key_exists('cancelPush', $data) || (bool) $data['cancelPush'];
+        $cancelCalendar = !array_key_exists('cancelCalendar', $data) || (bool) $data['cancelCalendar'];
+        $deleteSchedule = array_key_exists('deleteSchedule', $data) && (bool) $data['deleteSchedule'];
+
+        $command = new \Notification\Application\Command\CancelRecurringNotificationsCommand(
+            $id,
+            $this->getAuthenticatedUserId()->value(),
+            $sid,
+            null,
+            $cancelPush,
+            $cancelCalendar,
+            $deleteSchedule
+        );
+
+        $result = $this->commandBus->dispatch($command);
+
+        return $this->respond($result);
+    }
 }

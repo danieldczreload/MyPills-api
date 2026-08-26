@@ -51,6 +51,19 @@ final class DoctrineCalendarEventMappingRepository implements CalendarEventMappi
     /**
      * @return CalendarEventMapping[]
      */
+    public function findByDoseEventId(string $doseEventId): array
+    {
+        /** @var CalendarEventMappingDoctrineEntity[] $entities */
+        $entities = $this->entityManager->getRepository(CalendarEventMappingDoctrineEntity::class)
+            ->findBy(['doseEventId' => $doseEventId]);
+
+        return array_map(fn (CalendarEventMappingDoctrineEntity $entity): CalendarEventMapping => $this->mapToDomain($entity), $entities);
+    }
+
+
+    /**
+     * @return CalendarEventMapping[]
+     */
     public function findByProfileAndProvider(ProfileId $profileId, string $provider): array
     {
         $rows = $this->entityManager->getConnection()->fetchAllAssociative(
@@ -111,6 +124,24 @@ final class DoctrineCalendarEventMappingRepository implements CalendarEventMappi
         }
 
         return $mappings;
+    }
+
+    /**
+     * @param string[] $doseEventIds
+     *
+     * @return CalendarEventMapping[]
+     */
+    public function findByDoseEventIds(array $doseEventIds): array
+    {
+        if ($doseEventIds === []) {
+            return [];
+        }
+
+        /** @var CalendarEventMappingDoctrineEntity[] $entities */
+        $entities = $this->entityManager->getRepository(CalendarEventMappingDoctrineEntity::class)
+            ->findBy(['doseEventId' => $doseEventIds]);
+
+        return array_map(fn (CalendarEventMappingDoctrineEntity $entity): CalendarEventMapping => $this->mapToDomain($entity), $entities);
     }
 
     public function flush(): void

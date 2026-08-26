@@ -252,6 +252,12 @@ final class DoctrineRepositoriesTest extends KernelTestCase
         $foundMaps = $mapRepo->findByDoseEvents(['dose-123'], 'google');
         self::assertNotEmpty($foundMaps);
 
+        $byDoseId = $mapRepo->findByDoseEventId('dose-123');
+        self::assertCount(1, $byDoseId);
+
+        $byDoseIds = $mapRepo->findByDoseEventIds(['dose-123']);
+        self::assertCount(1, $byDoseIds);
+
         $mapRepo->delete($mapping);
         $linkRepo->delete($link);
     }
