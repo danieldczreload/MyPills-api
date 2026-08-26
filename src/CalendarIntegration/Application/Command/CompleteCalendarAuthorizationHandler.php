@@ -9,6 +9,7 @@ use CalendarIntegration\Domain\CalendarAuthorizationRequestRepository;
 use CalendarIntegration\Domain\CalendarLink;
 use CalendarIntegration\Domain\CalendarLinkRepository;
 use CalendarIntegration\Domain\CalendarProviderName;
+use CalendarIntegration\Domain\ServerAuthCodeExchanger;
 use Profile\Domain\ProfileRepository;
 use Shared\Domain\Failure;
 use Shared\Domain\Result;
@@ -38,12 +39,8 @@ final class CompleteCalendarAuthorizationHandler
             return Result::failure(Failure::validation('Invalid provider.'));
         }
 
-        if ($command->code === '' || $command->state === '' || $command->codeVerifier === '') {
-            return Result::failure(Failure::validation('Authorization code, state and PKCE verifier are required.'));
-        }
-
-        if (!preg_match('/^[A-Za-z0-9._~-]{43,128}$/', $command->codeVerifier)) {
-            return Result::failure(Failure::validation('Invalid PKCE code verifier.'));
+        if ($command->code === '') {
+            return Result::failure(Failure::validation('Authorization code is required.'));
         }
 
         $profileId = new ProfileId($command->profileId);
@@ -58,32 +55,59 @@ final class CompleteCalendarAuthorizationHandler
             return Result::failure(Failure::forbidden('You do not own this profile.'));
         }
 
-        $authorizationRequest = $this->authorizationRequestRepository->findByStateHash(hash('sha256', $command->state));
-        if (
-            $authorizationRequest === null
-            || !$authorizationRequest->isUsable(new \DateTimeImmutable())
-            || !$authorizationRequest->accountId()->equals($accountId)
-            || !$authorizationRequest->profileId()->equals($profileId)
-            || $authorizationRequest->provider() !== $command->provider
-        ) {
-            return Result::failure(Failure::unauthorized('Invalid or expired calendar authorization state.'));
-        }
-
-        $expectedCodeChallenge = rtrim(strtr(base64_encode(hash('sha256', $command->codeVerifier, true)), '+/', '-_'), '=');
-        if (!hash_equals($authorizationRequest->codeChallenge(), $expectedCodeChallenge)) {
-            return Result::failure(Failure::unauthorized('Invalid PKCE code verifier.'));
-        }
-
-        if (!$this->authorizationRequestRepository->consume($authorizationRequest, new \DateTimeImmutable())) {
-            return Result::failure(Failure::unauthorized('Calendar authorization state has already been used.'));
-        }
-
+        $isServerAuthCode = $command->state === '' && $command->codeVerifier === '';
         $oauthClient = $this->providerResolver->resolveString($command->provider);
 
-        try {
-            $tokens = $oauthClient->exchangeAuthorizationCode($command->code, $command->codeVerifier);
-        } catch (\Throwable) {
-            return Result::failure(Failure::badRequest('Calendar authorization could not be completed.'));
+        if ($isServerAuthCode) {
+            // Native SDK flow (google_sign_in): the code is bound to the Web
+            // client and exchanged server-side; no state/PKCE round-trip.
+            if ($command->provider !== CalendarProviderName::GOOGLE->value) {
+                return Result::failure(Failure::validation('Server auth code connect is only supported for Google.'));
+            }
+
+            if (!$oauthClient instanceof ServerAuthCodeExchanger) {
+                return Result::failure(Failure::validation('Provider does not support server auth code exchange.'));
+            }
+
+            try {
+                $tokens = $oauthClient->exchangeServerAuthCode($command->code);
+            } catch (\Throwable) {
+                return Result::failure(Failure::badRequest('Calendar authorization could not be completed.'));
+            }
+        } else {
+            if ($command->state === '' || $command->codeVerifier === '') {
+                return Result::failure(Failure::validation('State and PKCE verifier are required.'));
+            }
+
+            if (!preg_match('/^[A-Za-z0-9._~-]{43,128}$/', $command->codeVerifier)) {
+                return Result::failure(Failure::validation('Invalid PKCE code verifier.'));
+            }
+
+            $authorizationRequest = $this->authorizationRequestRepository->findByStateHash(hash('sha256', $command->state));
+            if (
+                $authorizationRequest === null
+                || !$authorizationRequest->isUsable(new \DateTimeImmutable())
+                || !$authorizationRequest->accountId()->equals($accountId)
+                || !$authorizationRequest->profileId()->equals($profileId)
+                || $authorizationRequest->provider() !== $command->provider
+            ) {
+                return Result::failure(Failure::unauthorized('Invalid or expired calendar authorization state.'));
+            }
+
+            $expectedCodeChallenge = rtrim(strtr(base64_encode(hash('sha256', $command->codeVerifier, true)), '+/', '-_'), '=');
+            if (!hash_equals($authorizationRequest->codeChallenge(), $expectedCodeChallenge)) {
+                return Result::failure(Failure::unauthorized('Invalid PKCE code verifier.'));
+            }
+
+            if (!$this->authorizationRequestRepository->consume($authorizationRequest, new \DateTimeImmutable())) {
+                return Result::failure(Failure::unauthorized('Calendar authorization state has already been used.'));
+            }
+
+            try {
+                $tokens = $oauthClient->exchangeAuthorizationCode($command->code, $command->codeVerifier);
+            } catch (\Throwable) {
+                return Result::failure(Failure::badRequest('Calendar authorization could not be completed.'));
+            }
         }
 
         $link = $this->calendarLinkRepository->findByProfileAndProvider($profileId, $command->provider);

@@ -6,9 +6,10 @@ namespace CalendarIntegration\Infrastructure;
 
 use CalendarIntegration\Domain\CalendarOAuthTokens;
 use CalendarIntegration\Domain\CalendarProvider;
+use CalendarIntegration\Domain\ServerAuthCodeExchanger;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
-final class GoogleCalendarGateway implements CalendarProvider
+final class GoogleCalendarGateway implements CalendarProvider, ServerAuthCodeExchanger
 {
     private const TOKEN_URL = 'https://oauth2.googleapis.com/token';
     private const PROVIDER_NAME = 'Google';
@@ -19,9 +20,33 @@ final class GoogleCalendarGateway implements CalendarProvider
         private readonly HttpClientInterface $httpClient,
         private readonly string $clientId = '',
         private readonly string $clientSecret = '',
-        private readonly string $redirectUri = ''
+        private readonly string $redirectUri = '',
+        private readonly string $webClientId = '',
+        private readonly string $webClientSecret = ''
     ) {
         $this->tokenEndpoint = new OAuthTokenEndpoint($httpClient);
+    }
+
+    /**
+     * Exchanges a server auth code issued by the Google Sign-In SDK on the
+     * device. The code is bound to the Web application client; the redirect
+     * URI must be sent as an empty string per Google's native-app flow.
+     */
+    public function exchangeServerAuthCode(string $serverAuthCode): CalendarOAuthTokens
+    {
+        if ($this->webClientId === '' || $this->webClientSecret === '') {
+            throw new \LogicException('Google Web OAuth client is not configured.');
+        }
+
+        return $this->tokenEndpoint->exchangeAuthorizationCode(
+            self::TOKEN_URL,
+            self::PROVIDER_NAME,
+            $this->webClientId,
+            $this->webClientSecret,
+            '',
+            $serverAuthCode,
+            ''
+        );
     }
 
     public function authorizationUrl(string $state, string $codeChallenge): string

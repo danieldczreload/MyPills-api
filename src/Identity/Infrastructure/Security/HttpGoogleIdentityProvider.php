@@ -14,7 +14,8 @@ final class HttpGoogleIdentityProvider implements GoogleIdentityProvider
 {
     public function __construct(
         private readonly HttpClientInterface $httpClient,
-        private readonly string $clientId = ''
+        private readonly string $clientId = '',
+        private readonly string $webClientId = ''
     ) {
     }
 
@@ -51,8 +52,11 @@ final class HttpGoogleIdentityProvider implements GoogleIdentityProvider
 
             $data = $response->toArray();
 
-            if ($this->clientId !== '' && isset($data['aud']) && $data['aud'] !== $this->clientId) {
-                return Result::failure(Failure::unauthorized('Google ID token audience mismatch.'));
+            if (isset($data['aud'])) {
+                $accepted = array_values(array_filter([$this->clientId, $this->webClientId]));
+                if ($accepted !== [] && !in_array($data['aud'], $accepted, true)) {
+                    return Result::failure(Failure::unauthorized('Google ID token audience mismatch.'));
+                }
             }
 
             $externalId = $data['sub'] ?? null;

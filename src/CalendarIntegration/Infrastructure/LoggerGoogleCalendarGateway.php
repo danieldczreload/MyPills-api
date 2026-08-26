@@ -6,9 +6,10 @@ namespace CalendarIntegration\Infrastructure;
 
 use CalendarIntegration\Domain\CalendarOAuthTokens;
 use CalendarIntegration\Domain\CalendarProvider;
+use CalendarIntegration\Domain\ServerAuthCodeExchanger;
 use Psr\Log\LoggerInterface;
 
-final class LoggerGoogleCalendarGateway implements CalendarProvider
+final class LoggerGoogleCalendarGateway implements CalendarProvider, ServerAuthCodeExchanger
 {
     public function __construct(
         private readonly LoggerInterface $logger
@@ -21,6 +22,11 @@ final class LoggerGoogleCalendarGateway implements CalendarProvider
     }
 
     public function exchangeAuthorizationCode(string $code, string $codeVerifier): CalendarOAuthTokens
+    {
+        return new CalendarOAuthTokens('mock-google-access-token', 'mock-google-refresh-token');
+    }
+
+    public function exchangeServerAuthCode(string $serverAuthCode): CalendarOAuthTokens
     {
         return new CalendarOAuthTokens('mock-google-access-token', 'mock-google-refresh-token');
     }
