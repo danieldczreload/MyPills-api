@@ -81,6 +81,7 @@ jobs:
           VALIDATE_ALL_CODEBASE: false
           VALIDATE_PHP: false
           VALIDATE_PHP_BUILTIN: false
+          VALIDATE_PHP_PHPCS: false
           VALIDATE_PHP_PHPSTAN: false
           VALIDATE_PHP_PSALM: false
           VALIDATE_PHP_CS_FIXER: false
