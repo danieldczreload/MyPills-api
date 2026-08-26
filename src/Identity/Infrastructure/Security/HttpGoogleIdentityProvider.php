@@ -15,13 +15,16 @@ final class HttpGoogleIdentityProvider implements GoogleIdentityProvider
     public function __construct(
         private readonly HttpClientInterface $httpClient,
         private readonly string $clientId = '',
-        private readonly string $webClientId = ''
+        private readonly string $webClientId = '',
+        private readonly string $environment = 'prod'
     ) {
     }
 
     public function verifyToken(string $idToken): Result
     {
-        if (str_starts_with($idToken, 'valid-')) {
+        // Local-development bypass, only honored when the kernel runs in dev.
+        // In production a `valid-*` token must never authenticate anyone.
+        if ($this->environment === 'dev' && str_starts_with($idToken, 'valid-')) {
             $email = substr($idToken, 6);
             if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
                 $email = 'google-user@example.com';

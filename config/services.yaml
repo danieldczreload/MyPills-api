@@ -126,6 +126,7 @@ services:
         arguments:
             $clientId: '%google.client_id%'
             $webClientId: '%google.web_client_id%'
+            $environment: '%kernel.environment%'
 
     Identity\Infrastructure\Security\HttpMicrosoftIdentityProvider: ~
 

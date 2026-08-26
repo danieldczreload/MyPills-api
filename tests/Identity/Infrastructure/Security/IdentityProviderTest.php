@@ -39,10 +39,18 @@ final class IdentityProviderTest extends TestCase
     public function testHttpGoogleIdentityProviderValidShortCircuit(): void
     {
         $http = new MockHttpClient();
-        $provider = new HttpGoogleIdentityProvider($http, 'expected-client-id');
+        $provider = new HttpGoogleIdentityProvider($http, 'expected-client-id', '', 'dev');
         $res = $provider->verifyToken('valid-alice@example.com');
         self::assertTrue($res->isSuccess());
         self::assertSame('alice@example.com', $res->getValue()->email);
+    }
+
+    public function testHttpGoogleIdentityProviderValidShortCircuitRejectedInProd(): void
+    {
+        $http = new MockHttpClient();
+        $provider = new HttpGoogleIdentityProvider($http, 'expected-client-id', '', 'prod');
+        $res = $provider->verifyToken('valid-alice@example.com');
+        self::assertTrue($res->isFailure());
     }
 
     public function testHttpGoogleIdentityProviderApiSuccessAndAudienceMismatch(): void
