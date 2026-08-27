@@ -149,14 +149,10 @@ final class SyncCalendarHandler
      * @param-out int $eventsCreated
      * @param-out int $eventsUpdated
      *
-     * @return array{provider: string, reason: string}|null Per-link failure detail, null on success.
+     * @return array{provider: string, reason: string, detail?: string}|null Per-link failure detail, null on success.
      */
     private function syncLink(CalendarLink $link, array $doseEvents, array $medicationMap, int &$eventsCreated, int &$eventsUpdated): ?array
     {
-        if ($link->status() === CalendarLinkStatus::REAUTH_REQUIRED) {
-            return $this->reauthRequired($link);
-        }
-
         try {
             $gateway = $this->providerResolver->resolveString($link->provider());
         } catch (\InvalidArgumentException) {
@@ -169,12 +165,23 @@ final class SyncCalendarHandler
             );
         } catch (CalendarAuthorizationRevoked | \InvalidArgumentException) {
             // Access was revoked, or stored ciphertext is undecryptable (tampered row or rotated vault key).
-            $link->markReauthorizationRequired();
-            $this->calendarLinkRepository->save($link);
+            if ($link->status() !== CalendarLinkStatus::REAUTH_REQUIRED) {
+                $link->markReauthorizationRequired();
+                $this->calendarLinkRepository->save($link);
+            }
 
             return $this->reauthRequired($link);
-        } catch (\Throwable) {
-            return ['provider' => $link->provider(), 'reason' => 'REFRESH_FAILED'];
+        } catch (\Throwable $exception) {
+            return [
+                'provider' => $link->provider(),
+                'reason' => 'REFRESH_FAILED',
+                'detail' => $exception->getMessage(),
+            ];
+        }
+
+        if ($link->status() === CalendarLinkStatus::REAUTH_REQUIRED) {
+            $link->markActive();
+            $this->calendarLinkRepository->save($link);
         }
 
         $rotatedRefreshToken = $tokens->refreshToken();
@@ -216,8 +223,12 @@ final class SyncCalendarHandler
                     $mapping?->externalEventId(),
                     self::idempotencyKey($event->id()->value(), $link->provider())
                 );
-            } catch (\Throwable) {
-                return ['provider' => $link->provider(), 'reason' => 'UPSERT_FAILED'];
+            } catch (\Throwable $exception) {
+                return [
+                    'provider' => $link->provider(),
+                    'reason' => 'UPSERT_FAILED',
+                    'detail' => $exception->getMessage(),
+                ];
             }
 
             if ($mapping === null) {

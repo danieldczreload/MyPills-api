@@ -84,13 +84,49 @@ final class GoogleCalendarGateway implements CalendarProvider, ServerAuthCodeExc
 
     public function refreshAccessToken(string $refreshToken): CalendarOAuthTokens
     {
-        return $this->tokenEndpoint->refreshAccessToken(
-            self::TOKEN_URL,
-            self::PROVIDER_NAME,
-            $this->clientId,
-            $this->clientSecret,
-            $refreshToken
-        );
+        $clients = $this->tokenClients();
+        if ($clients === []) {
+            throw new \LogicException('Google Calendar OAuth client is not configured.');
+        }
+
+        $lastException = new \RuntimeException('Failed to refresh Google OAuth token.');
+        foreach ($clients as [$clientId, $clientSecret]) {
+            try {
+                return $this->tokenEndpoint->refreshAccessToken(
+                    self::TOKEN_URL,
+                    self::PROVIDER_NAME,
+                    $clientId,
+                    $clientSecret,
+                    $refreshToken
+                );
+            } catch (\Throwable $exception) {
+                $lastException = $exception;
+            }
+        }
+
+        throw $lastException;
+    }
+
+    /**
+     * Native google_sign_in exchanges a serverAuthCode with the Web client, so
+     * refresh tokens are bound to GOOGLE_WEB_CLIENT_ID. Legacy PKCE links used
+     * the Android public client. Try Web first, then Android.
+     *
+     * @return list<array{0: string, 1: string}>
+     */
+    private function tokenClients(): array
+    {
+        $clients = [];
+
+        if ($this->webClientId !== '') {
+            $clients[] = [$this->webClientId, $this->webClientSecret];
+        }
+
+        if ($this->clientId !== '' && $this->clientId !== $this->webClientId) {
+            $clients[] = [$this->clientId, $this->clientSecret];
+        }
+
+        return $clients;
     }
 
     public function upsertEvent(
@@ -153,8 +189,9 @@ final class GoogleCalendarGateway implements CalendarProvider, ServerAuthCodeExc
 
         if ($response->getStatusCode() < 200 || $response->getStatusCode() >= 300) {
             throw new \RuntimeException(sprintf(
-                'Google Calendar API failed with status %d.',
-                $response->getStatusCode()
+                'Google Calendar API failed with status %d: %s',
+                $response->getStatusCode(),
+                substr($response->getContent(false), 0, 500)
             ));
         }
 

@@ -17,6 +17,7 @@ use Shared\Domain\TokenVault;
 use Shared\Domain\ValueObject\ProfileId;
 use Shared\Domain\ValueObject\UserId;
 use Symfony\Component\Messenger\Attribute\AsMessageHandler;
+use Symfony\Component\Messenger\MessageBusInterface;
 
 #[AsMessageHandler]
 final class CompleteCalendarAuthorizationHandler
@@ -26,7 +27,8 @@ final class CompleteCalendarAuthorizationHandler
         private readonly CalendarLinkRepository $calendarLinkRepository,
         private readonly ProfileRepository $profileRepository,
         private readonly TokenVault $tokenVault,
-        private readonly CalendarProviderResolver $providerResolver
+        private readonly CalendarProviderResolver $providerResolver,
+        private readonly ?MessageBusInterface $commandBus = null
     ) {
     }
 
@@ -134,6 +136,14 @@ final class CompleteCalendarAuthorizationHandler
         }
 
         $this->calendarLinkRepository->save($link);
+
+        if ($this->commandBus !== null) {
+            try {
+                $this->commandBus->dispatch(new SyncCalendarCommand($command->accountId, $command->profileId));
+            } catch (\Throwable) {
+                // Connection is already persisted; sync can be retried later.
+            }
+        }
 
         return Result::success([
             'profileId' => $command->profileId,

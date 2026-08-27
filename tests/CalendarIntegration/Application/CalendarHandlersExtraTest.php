@@ -14,6 +14,8 @@ use CalendarIntegration\Domain\CalendarEventMapping;
 use CalendarIntegration\Domain\CalendarEventMappingRepository;
 use CalendarIntegration\Domain\CalendarLink;
 use CalendarIntegration\Domain\CalendarLinkRepository;
+use CalendarIntegration\Domain\CalendarLinkStatus;
+use CalendarIntegration\Domain\CalendarOAuthTokens;
 use CalendarIntegration\Domain\CalendarProvider;
 use DoseEvent\Domain\DoseEvent;
 use DoseEvent\Domain\DoseEventRepository;
@@ -216,14 +218,19 @@ final class CalendarHandlersExtraTest extends TestCase
         $dose = DoseEvent::create(new DoseEventId('dose-1'), $medId, new ScheduleId('sch-1'), new \DateTimeImmutable('+1 day'));
         $doseRepo->method('findByScheduleIdsAndRange')->willReturn([$dose]);
 
-        // 1. Link marked REAUTH_REQUIRED
+        // 1. Link marked REAUTH_REQUIRED recovers when refresh succeeds
         $reauthLink = CalendarLink::create(new ProfileId('prof-1'), 'google', 'enc-refresh');
         $reauthLink->markReauthorizationRequired();
         $linkRepo = $this->createMock(CalendarLinkRepository::class);
         $linkRepo->method('findByProfile')->willReturn([$reauthLink]);
+        $vault->method('decrypt')->willReturn('dec-refresh');
+        $google->method('refreshAccessToken')->willReturn(new CalendarOAuthTokens('access', null));
+        $google->method('upsertEvent')->willReturn('ext-evt-1');
+        $mapRepo->method('findByDoseEvents')->willReturn([]);
         $handler = new SyncCalendarHandler($linkRepo, $mapRepo, $profileRepo, $medRepo, $schedRepo, $doseRepo, $resolver, $vault);
         $res = $handler(new SyncCalendarCommand('acc-1', 'prof-1'));
-        self::assertTrue($res->isFailure());
+        self::assertTrue($res->isSuccess());
+        self::assertSame(CalendarLinkStatus::ACTIVE, $reauthLink->status());
 
         // 2. Unsupported provider
         $unknownLink = CalendarLink::create(new ProfileId('prof-1'), 'yahoo', 'enc-refresh');
@@ -234,11 +241,12 @@ final class CalendarHandlersExtraTest extends TestCase
         self::assertTrue($res->isFailure());
 
         // 3. Generic Throwable on refresh
+        $google = $this->createMock(CalendarProvider::class);
+        $google->method('refreshAccessToken')->willThrowException(new \RuntimeException('Network timeout'));
+        $resolver = new CalendarProviderResolver($google, $microsoft);
         $googleLink = CalendarLink::create(new ProfileId('prof-1'), 'google', 'enc-refresh');
         $linkRepo = $this->createMock(CalendarLinkRepository::class);
         $linkRepo->method('findByProfile')->willReturn([$googleLink]);
-        $vault->method('decrypt')->willReturn('dec-refresh');
-        $google->method('refreshAccessToken')->willThrowException(new \RuntimeException('Network timeout'));
         $handler = new SyncCalendarHandler($linkRepo, $mapRepo, $profileRepo, $medRepo, $schedRepo, $doseRepo, $resolver, $vault);
         $res = $handler(new SyncCalendarCommand('acc-1', 'prof-1'));
         self::assertTrue($res->isFailure());

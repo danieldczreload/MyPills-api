@@ -208,6 +208,71 @@ final class CalendarGatewayTest extends TestCase
         self::assertSame('new-google-access-token', $tokens->accessToken());
     }
 
+    public function testGoogleRefreshPrefersWebClientWhenConfigured(): void
+    {
+        $clientIds = [];
+        $httpClient = new MockHttpClient(function (string $method, string $url, array $options) use (&$clientIds): MockResponse {
+            $clientIds[] = self::clientIdFromOptions($options);
+
+            return new MockResponse(json_encode([
+                'access_token' => 'web-refreshed-token',
+            ], JSON_THROW_ON_ERROR));
+        });
+        $gateway = new GoogleCalendarGateway(
+            $httpClient,
+            'android-client-id',
+            '',
+            'com.mypills.app://auth',
+            'web-client-id',
+            'web-client-secret'
+        );
+
+        $tokens = $gateway->refreshAccessToken('google-refresh-token');
+
+        self::assertSame('web-refreshed-token', $tokens->accessToken());
+        self::assertSame(['web-client-id'], $clientIds);
+    }
+
+    public function testGoogleRefreshFallsBackToAndroidClientWhenWebRefreshFails(): void
+    {
+        $clientIds = [];
+        $responses = [
+            new MockResponse(json_encode(['error' => 'unauthorized_client'], JSON_THROW_ON_ERROR), ['http_code' => 401]),
+            new MockResponse(json_encode(['access_token' => 'android-refreshed-token'], JSON_THROW_ON_ERROR)),
+        ];
+        $httpClient = new MockHttpClient(function (string $method, string $url, array $options) use (&$clientIds, &$responses): MockResponse {
+            $clientIds[] = self::clientIdFromOptions($options);
+            $response = array_shift($responses);
+            if (!$response instanceof MockResponse) {
+                throw new \LogicException('Test response queue is empty.');
+            }
+
+            return $response;
+        });
+        $gateway = new GoogleCalendarGateway(
+            $httpClient,
+            'android-client-id',
+            '',
+            'com.mypills.app://auth',
+            'web-client-id',
+            'web-client-secret'
+        );
+
+        $tokens = $gateway->refreshAccessToken('google-refresh-token');
+
+        self::assertSame('android-refreshed-token', $tokens->accessToken());
+        self::assertSame(['web-client-id', 'android-client-id'], $clientIds);
+    }
+
+    public function testGoogleRefreshThrowsWhenNoClientIsConfigured(): void
+    {
+        $gateway = new GoogleCalendarGateway(new MockHttpClient());
+
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessage('Google Calendar OAuth client is not configured.');
+        $gateway->refreshAccessToken('google-refresh-token');
+    }
+
     public function testGoogleUpsertEventRetriesAsCreateOn404(): void
     {
         $requests = [];
@@ -248,7 +313,7 @@ final class CalendarGatewayTest extends TestCase
         $gateway = new GoogleCalendarGateway($httpClient, 'client-id', 'client-secret');
 
         $this->expectException(\RuntimeException::class);
-        $this->expectExceptionMessage('Google Calendar API failed with status 500.');
+        $this->expectExceptionMessage('Google Calendar API failed with status 500');
 
         $gateway->upsertEvent(
             'access-token',
@@ -304,6 +369,27 @@ final class CalendarGatewayTest extends TestCase
         $this->expectExceptionMessage('Google Calendar API delete failed with status 500.');
 
         $gateway->deleteEvent('access-token', 'evt-err');
+    }
+
+    /**
+     * @param array<string, mixed> $options
+     */
+    private static function clientIdFromOptions(array $options): string
+    {
+        $body = $options['body'] ?? '';
+        if (is_array($body)) {
+            $clientId = $body['client_id'] ?? null;
+
+            return is_string($clientId) ? $clientId : '';
+        }
+        if (!is_string($body)) {
+            return '';
+        }
+
+        parse_str($body, $parsed);
+        $clientId = $parsed['client_id'] ?? null;
+
+        return is_string($clientId) ? $clientId : '';
     }
 
     public function testMicrosoftExchangeAuthorizationCodeAndRefresh(): void
