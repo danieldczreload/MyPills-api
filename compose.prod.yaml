@@ -38,12 +38,15 @@ services:
       context: .
       target: frankenphp_prod
     restart: unless-stopped
-    command: ["bin/console", "messenger:consume", "event.async", "--time-limit=3600", "--sleep=1"]
+    command: ["bin/console", "messenger:consume", "event.async", "scheduler_reminders", "--time-limit=3600", "--sleep=1"]
     environment:
       APP_ENV: prod
       DATABASE_URL: postgresql://${POSTGRES_USER:-app}:${POSTGRES_PASSWORD}@database:5432/${POSTGRES_DB:-app}?serverVersion=16&charset=utf8
       MESSENGER_TRANSPORT_DSN: ${MESSENGER_TRANSPORT_DSN:-doctrine://default}
       OAUTH_TOKEN_ENCRYPTION_KEY: ${OAUTH_TOKEN_ENCRYPTION_KEY:?OAUTH_TOKEN_ENCRYPTION_KEY is required}
+      FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID:?FIREBASE_PROJECT_ID is required}
+      FIREBASE_CLIENT_EMAIL: ${FIREBASE_CLIENT_EMAIL:?FIREBASE_CLIENT_EMAIL is required}
+      FIREBASE_PRIVATE_KEY: ${FIREBASE_PRIVATE_KEY:?FIREBASE_PRIVATE_KEY is required}
       # Mismas vars que pueda necesitar el handler de calendario al refrescar tokens:
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:?GOOGLE_CLIENT_ID is required}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}

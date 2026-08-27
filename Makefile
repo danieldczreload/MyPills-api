@@ -1,4 +1,4 @@
-.PHONY: up down sh logs db reset-db test migrate cs stan lint check help secrets-pull secrets-clean
+.PHONY: up down sh logs db reset-db test migrate cs stan lint check dispatch help secrets-pull secrets-clean
 
 export PATH := $(HOME)/.local/bin:$(PATH)
 
@@ -56,5 +56,8 @@ lint: ## Run Symfony container, YAML and Doctrine schema linters
 	$(COMPOSE) exec php bin/console lint:container
 	$(COMPOSE) exec php bin/console lint:yaml config --parse-tags
 	$(COMPOSE) exec php bin/console doctrine:schema:validate --skip-sync
+
+dispatch: ## Run due dose reminder dispatch manually
+	$(COMPOSE) exec php bin/console app:reminders:dispatch --no-interaction
 
 check: lint cs stan test ## Run all quality gates (lint, cs, stan, test)
