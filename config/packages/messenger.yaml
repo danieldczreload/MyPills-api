@@ -21,6 +21,11 @@ framework:
                     queue_name: async
                     use_notify: true
                     check_delayed_interval: 60000
+                retry_strategy:
+                    max_retries: 3
+                    delay: 1000
+                    multiplier: 2
+                    max_delay: 0
 
         routing:
             # Route events to async transport by default

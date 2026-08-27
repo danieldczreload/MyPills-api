@@ -45,6 +45,94 @@ final class FcmPushNotificationGatewayTest extends TestCase
         $payload = json_decode($requests[1][2]['body'], true, 512, JSON_THROW_ON_ERROR);
         self::assertSame('fcm-token', $payload['message']['token']);
         self::assertSame('event-id', $payload['message']['data']['doseEventId']);
+
+        // Second send reuses cached token
+        $responses[] = new MockResponse(json_encode(['name' => 'projects/demo/messages/2'], JSON_THROW_ON_ERROR));
+        $gateway->send('fcm-token-2', 'Title', 'Body');
+        self::assertCount(3, $requests); // No second OAuth request
+    }
+
+    public function testNotConfiguredThrowsLogicException(): void
+    {
+        $gateway = new FcmPushNotificationGateway(new MockHttpClient(), '', '', '');
+        $this->expectException(\LogicException::class);
+        $gateway->send('token', 'title', 'body');
+    }
+
+    public function testInvalidArgumentsThrowExceptions(): void
+    {
+        $privateKey = $this->createPrivateKey();
+        $gateway = new FcmPushNotificationGateway(new MockHttpClient(), 'demo', 'email@test.com', $privateKey);
+
+        $this->expectException(\InvalidArgumentException::class);
+        $gateway->send('', 'title', 'body');
+    }
+
+    public function testNonScalarDataThrowsException(): void
+    {
+        $privateKey = $this->createPrivateKey();
+        $gateway = new FcmPushNotificationGateway(new MockHttpClient(), 'demo', 'email@test.com', $privateKey);
+
+        $this->expectException(\InvalidArgumentException::class);
+        $gateway->send('token', 'title', 'body', ['nested' => ['array']]);
+    }
+
+    public function testUnregisteredTokenThrowsInvalidDeviceToken(): void
+    {
+        $privateKey = $this->createPrivateKey();
+        $httpClient = new MockHttpClient([
+            new MockResponse(json_encode(['access_token' => 'tok', 'expires_in' => 3600], JSON_THROW_ON_ERROR)),
+            new MockResponse(json_encode([
+                'error' => [
+                    'status' => 'NOT_FOUND',
+                    'details' => [['errorCode' => 'UNREGISTERED']],
+                ],
+            ], JSON_THROW_ON_ERROR), ['http_code' => 404]),
+        ]);
+        $gateway = new FcmPushNotificationGateway($httpClient, 'demo', 'email@test.com', $privateKey);
+
+        $this->expectException(\Notification\Domain\InvalidDeviceToken::class);
+        $gateway->send('token', 'title', 'body');
+    }
+
+    public function testServerErrorThrowsRuntimeException(): void
+    {
+        $privateKey = $this->createPrivateKey();
+        $httpClient = new MockHttpClient([
+            new MockResponse(json_encode(['access_token' => 'tok', 'expires_in' => 3600], JSON_THROW_ON_ERROR)),
+            new MockResponse(json_encode(['error' => ['status' => 'INTERNAL']], JSON_THROW_ON_ERROR), ['http_code' => 500]),
+        ]);
+        $gateway = new FcmPushNotificationGateway($httpClient, 'demo', 'email@test.com', $privateKey);
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('FCM Push notification failed with status 500.');
+        $gateway->send('token', 'title', 'body');
+    }
+
+    public function testOAuthTokenFailureThrowsRuntimeException(): void
+    {
+        $privateKey = $this->createPrivateKey();
+        $httpClient = new MockHttpClient([
+            new MockResponse('Bad Request', ['http_code' => 400]),
+        ]);
+        $gateway = new FcmPushNotificationGateway($httpClient, 'demo', 'email@test.com', $privateKey);
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('Firebase OAuth token request failed with status 400.');
+        $gateway->send('token', 'title', 'body');
+    }
+
+    public function testOAuthResponseMissingTokenThrowsRuntimeException(): void
+    {
+        $privateKey = $this->createPrivateKey();
+        $httpClient = new MockHttpClient([
+            new MockResponse(json_encode(['token_type' => 'Bearer'], JSON_THROW_ON_ERROR)),
+        ]);
+        $gateway = new FcmPushNotificationGateway($httpClient, 'demo', 'email@test.com', $privateKey);
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('Firebase OAuth response did not contain an access token.');
+        $gateway->send('token', 'title', 'body');
     }
 
     private function createPrivateKey(): string

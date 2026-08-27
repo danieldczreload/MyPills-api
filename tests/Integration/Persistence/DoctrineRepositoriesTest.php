@@ -36,8 +36,11 @@ use Shared\Domain\ValueObject\Email;
 use Shared\Domain\ValueObject\MedicationId;
 use Shared\Domain\ValueObject\ProfileId;
 use Shared\Domain\ValueObject\ScheduleId;
+use Shared\Domain\ValueObject\TaxonomyGroupId;
 use Shared\Domain\ValueObject\UserId;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
+use Taxonomy\Domain\TaxonomyGroup;
+use Taxonomy\Infrastructure\Persistence\DoctrineTaxonomyGroupRepository;
 
 final class DoctrineRepositoriesTest extends KernelTestCase
 {
@@ -260,5 +263,70 @@ final class DoctrineRepositoriesTest extends KernelTestCase
 
         $mapRepo->delete($mapping);
         $linkRepo->delete($link);
+    }
+
+    public function testTaxonomyGroupRepository(): void
+    {
+        $container = static::getContainer();
+        /** @var DoctrineTaxonomyGroupRepository $taxRepo */
+        $taxRepo = $container->get(DoctrineTaxonomyGroupRepository::class);
+
+        $profileId = ProfileId::generate();
+        $groupId = TaxonomyGroupId::generate();
+        $group = TaxonomyGroup::create(
+            $groupId,
+            $profileId,
+            'category',
+            'Pain Relief',
+            'Medications for pain',
+            'pill_icon',
+            0xFF0000,
+            true,
+            'client-tax-1'
+        );
+
+        $taxRepo->save($group);
+
+        $found = $taxRepo->findById($groupId);
+        self::assertNotNull($found);
+        self::assertSame('Pain Relief', $found->name());
+        self::assertSame('category', $found->type());
+        self::assertSame('Medications for pain', $found->description());
+        self::assertSame('pill_icon', $found->iconName());
+        self::assertSame(0xFF0000, $found->colorValue());
+        self::assertTrue($found->isCustom());
+        self::assertSame('client-tax-1', $found->clientId());
+
+        $byProfile = $taxRepo->findByProfileId($profileId);
+        self::assertCount(1, $byProfile);
+
+        $byClientId = $taxRepo->findByClientId('client-tax-1');
+        self::assertNotNull($byClientId);
+        self::assertSame($groupId->value(), $byClientId->id()->value());
+
+        // Update group
+        $group->update(
+            type: 'tag',
+            name: 'Updated Relief',
+            description: 'Updated desc',
+            iconName: 'new_icon',
+            colorValue: 0x00FF00,
+            isCustom: false
+        );
+        $taxRepo->save($group);
+
+        $updatedFound = $taxRepo->findById($groupId);
+        self::assertNotNull($updatedFound);
+        self::assertSame('Updated Relief', $updatedFound->name());
+        self::assertSame('tag', $updatedFound->type());
+        self::assertSame('Updated desc', $updatedFound->description());
+        self::assertSame('new_icon', $updatedFound->iconName());
+        self::assertSame(0x00FF00, $updatedFound->colorValue());
+        self::assertFalse($updatedFound->isCustom());
+
+        // Delete group
+        $taxRepo->delete($group);
+        self::assertNull($taxRepo->findById($groupId));
+        self::assertNull($taxRepo->findByClientId('client-tax-1'));
     }
 }

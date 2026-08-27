@@ -156,4 +156,252 @@ final class CalendarGatewayTest extends TestCase
         self::assertSame('UTC', $payload['start']['timeZone']);
         self::assertSame('stable-event-key', $payload['transactionId']);
     }
+
+    public function testGoogleExchangeServerAuthCodeThrowsWhenNotConfigured(): void
+    {
+        $gateway = new GoogleCalendarGateway(new MockHttpClient());
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessage('Google Web OAuth client is not configured.');
+        $gateway->exchangeServerAuthCode('auth-code');
+    }
+
+    public function testGoogleExchangeServerAuthCodeSuccess(): void
+    {
+        $httpClient = new MockHttpClient([
+            new MockResponse(json_encode([
+                'access_token' => 'web-access-token',
+                'refresh_token' => 'web-refresh-token',
+            ], JSON_THROW_ON_ERROR)),
+        ]);
+        $gateway = new GoogleCalendarGateway(
+            $httpClient,
+            'client-id',
+            'client-secret',
+            'https://redirect',
+            'web-client-id',
+            'web-client-secret'
+        );
+
+        $tokens = $gateway->exchangeServerAuthCode('server-auth-code');
+        self::assertSame('web-access-token', $tokens->accessToken());
+        self::assertSame('web-refresh-token', $tokens->refreshToken());
+    }
+
+    public function testGoogleAuthorizationUrlThrowsWhenNotConfigured(): void
+    {
+        $gateway = new GoogleCalendarGateway(new MockHttpClient());
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessage('Google Calendar OAuth client is not configured.');
+        $gateway->authorizationUrl('state', 'challenge');
+    }
+
+    public function testGoogleRefreshAccessToken(): void
+    {
+        $httpClient = new MockHttpClient([
+            new MockResponse(json_encode([
+                'access_token' => 'new-google-access-token',
+            ], JSON_THROW_ON_ERROR)),
+        ]);
+        $gateway = new GoogleCalendarGateway($httpClient, 'client-id', 'client-secret');
+
+        $tokens = $gateway->refreshAccessToken('google-refresh-token');
+        self::assertSame('new-google-access-token', $tokens->accessToken());
+    }
+
+    public function testGoogleUpsertEventRetriesAsCreateOn404(): void
+    {
+        $requests = [];
+        $responses = [
+            new MockResponse('', ['http_code' => 404]),
+            new MockResponse(json_encode(['id' => 'created-event-id'], JSON_THROW_ON_ERROR), ['http_code' => 200]),
+        ];
+        $httpClient = new MockHttpClient(function (string $method, string $url, array $options) use (&$requests, &$responses): MockResponse {
+            $requests[] = [$method, $url, $options];
+            $response = array_shift($responses);
+            if (!$response instanceof MockResponse) {
+                throw new \LogicException('Test response queue is empty.');
+            }
+
+            return $response;
+        });
+        $gateway = new GoogleCalendarGateway($httpClient, 'client-id', 'client-secret');
+
+        $eventId = $gateway->upsertEvent(
+            'access-token',
+            'Take medication',
+            new \DateTimeImmutable('2026-08-03T08:00:00+00:00'),
+            new \DateTimeImmutable('2026-08-03T08:30:00+00:00'),
+            'Instructions',
+            'old-nonexistent-id'
+        );
+
+        self::assertSame('created-event-id', $eventId);
+        self::assertSame('PATCH', $requests[0][0]);
+        self::assertSame('POST', $requests[1][0]);
+    }
+
+    public function testGoogleUpsertEventThrowsOnServerError(): void
+    {
+        $httpClient = new MockHttpClient([
+            new MockResponse('Internal Server Error', ['http_code' => 500]),
+        ]);
+        $gateway = new GoogleCalendarGateway($httpClient, 'client-id', 'client-secret');
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('Google Calendar API failed with status 500.');
+
+        $gateway->upsertEvent(
+            'access-token',
+            'Take medication',
+            new \DateTimeImmutable('2026-08-03T08:00:00+00:00'),
+            new \DateTimeImmutable('2026-08-03T08:30:00+00:00'),
+            'Instructions'
+        );
+    }
+
+    public function testGoogleUpsertEventThrowsWhenEventHasNoId(): void
+    {
+        $httpClient = new MockHttpClient([
+            new MockResponse(json_encode(['summary' => 'Take medication'], JSON_THROW_ON_ERROR)),
+        ]);
+        $gateway = new GoogleCalendarGateway($httpClient, 'client-id', 'client-secret');
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('Google Calendar API returned an event without an ID.');
+
+        $gateway->upsertEvent(
+            'access-token',
+            'Take medication',
+            new \DateTimeImmutable('2026-08-03T08:00:00+00:00'),
+            new \DateTimeImmutable('2026-08-03T08:30:00+00:00'),
+            'Instructions'
+        );
+    }
+
+    public function testGoogleDeleteEventSuccessAnd404(): void
+    {
+        $this->expectNotToPerformAssertions();
+        $httpClient = new MockHttpClient([
+            new MockResponse('', ['http_code' => 204]),
+            new MockResponse('', ['http_code' => 200]),
+            new MockResponse('', ['http_code' => 404]),
+        ]);
+        $gateway = new GoogleCalendarGateway($httpClient, 'client-id', 'client-secret');
+
+        $gateway->deleteEvent('access-token', 'evt-1');
+        $gateway->deleteEvent('access-token', 'evt-2');
+        $gateway->deleteEvent('access-token', 'evt-3');
+    }
+
+    public function testGoogleDeleteEventThrowsOnError(): void
+    {
+        $httpClient = new MockHttpClient([
+            new MockResponse('', ['http_code' => 500]),
+        ]);
+        $gateway = new GoogleCalendarGateway($httpClient, 'client-id', 'client-secret');
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('Google Calendar API delete failed with status 500.');
+
+        $gateway->deleteEvent('access-token', 'evt-err');
+    }
+
+    public function testMicrosoftExchangeAuthorizationCodeAndRefresh(): void
+    {
+        $httpClient = new MockHttpClient([
+            new MockResponse(json_encode(['access_token' => 'ms-access', 'refresh_token' => 'ms-refresh'], JSON_THROW_ON_ERROR)),
+            new MockResponse(json_encode(['access_token' => 'ms-new-access'], JSON_THROW_ON_ERROR)),
+        ]);
+        $gateway = new MicrosoftCalendarGateway($httpClient, 'client-id', 'client-secret', 'common', 'https://redirect');
+
+        $tokens = $gateway->exchangeAuthorizationCode('code', str_repeat('v', 43));
+        self::assertSame('ms-access', $tokens->accessToken());
+        self::assertSame('ms-refresh', $tokens->refreshToken());
+
+        $refreshed = $gateway->refreshAccessToken('ms-refresh');
+        self::assertSame('ms-new-access', $refreshed->accessToken());
+    }
+
+    public function testMicrosoftUpsertEventRetriesAsCreateOn404(): void
+    {
+        $requests = [];
+        $responses = [
+            new MockResponse('', ['http_code' => 404]),
+            new MockResponse(json_encode(['id' => 'ms-created-id'], JSON_THROW_ON_ERROR), ['http_code' => 200]),
+        ];
+        $httpClient = new MockHttpClient(function (string $method, string $url, array $options) use (&$requests, &$responses): MockResponse {
+            $requests[] = [$method, $url, $options];
+            $response = array_shift($responses);
+            if (!$response instanceof MockResponse) {
+                throw new \LogicException('Test response queue is empty.');
+            }
+
+            return $response;
+        });
+        $gateway = new MicrosoftCalendarGateway($httpClient, 'client-id', 'client-secret', 'common', 'https://redirect');
+
+        $eventId = $gateway->upsertEvent(
+            'access-token',
+            'Take medication',
+            new \DateTimeImmutable('2026-08-03T08:00:00+00:00'),
+            new \DateTimeImmutable('2026-08-03T08:30:00+00:00'),
+            'Instructions',
+            'old-ms-id'
+        );
+
+        self::assertSame('ms-created-id', $eventId);
+        self::assertSame('PATCH', $requests[0][0]);
+        self::assertSame('POST', $requests[1][0]);
+    }
+
+    public function testMicrosoftUpsertEventThrowsOnServerError(): void
+    {
+        $httpClient = new MockHttpClient([
+            new MockResponse('Server Error', ['http_code' => 502]),
+        ]);
+        $gateway = new MicrosoftCalendarGateway($httpClient, 'client-id', 'client-secret', 'common', 'https://redirect');
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('Microsoft Graph API failed with status 502.');
+
+        $gateway->upsertEvent(
+            'access-token',
+            'Take medication',
+            new \DateTimeImmutable('2026-08-03T08:00:00+00:00'),
+            new \DateTimeImmutable('2026-08-03T08:30:00+00:00'),
+            'Instructions'
+        );
+    }
+
+    public function testMicrosoftUpsertEventThrowsWhenEventHasNoId(): void
+    {
+        $httpClient = new MockHttpClient([
+            new MockResponse(json_encode(['subject' => 'Take medication'], JSON_THROW_ON_ERROR)),
+        ]);
+        $gateway = new MicrosoftCalendarGateway($httpClient, 'client-id', 'client-secret', 'common', 'https://redirect');
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('Microsoft Graph API returned an event without an ID.');
+
+        $gateway->upsertEvent(
+            'access-token',
+            'Take medication',
+            new \DateTimeImmutable('2026-08-03T08:00:00+00:00'),
+            new \DateTimeImmutable('2026-08-03T08:30:00+00:00'),
+            'Instructions'
+        );
+    }
+
+    public function testMicrosoftDeleteEventThrowsOnError(): void
+    {
+        $httpClient = new MockHttpClient([
+            new MockResponse('', ['http_code' => 500]),
+        ]);
+        $gateway = new MicrosoftCalendarGateway($httpClient, 'client-id', 'secret', 'common', 'https://redirect');
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('Microsoft Graph API delete failed with status 500.');
+
+        $gateway->deleteEvent('access-token', 'evt-id');
+    }
 }

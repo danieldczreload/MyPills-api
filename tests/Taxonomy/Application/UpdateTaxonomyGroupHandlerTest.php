@@ -58,4 +58,55 @@ final class UpdateTaxonomyGroupHandlerTest extends TestCase
         self::assertSame('New Name', $result->getValue()['name']);
         self::assertSame('tag', $result->getValue()['type']);
     }
+
+    public function testProfileNotFoundReturnsFailure(): void
+    {
+        $this->profileRepo->method('findById')->willReturn(null);
+        $command = new UpdateTaxonomyGroupCommand('group-1', 'prof-1', 'acc-1', 'tag', 'New Name');
+        $result = ($this->handler)($command);
+
+        self::assertTrue($result->isFailure());
+        self::assertSame('Profile not found.', $result->getFailure()->getMessage());
+    }
+
+    public function testProfileForbiddenReturnsFailure(): void
+    {
+        $profile = new PatientProfile(new ProfileId('prof-1'), new UserId('acc-other'), 'John Doe', new \DateTimeImmutable('1990-01-01'), 'male', null, new \DateTimeImmutable(), new \DateTimeImmutable());
+        $this->profileRepo->method('findById')->willReturn($profile);
+        $command = new UpdateTaxonomyGroupCommand('group-1', 'prof-1', 'acc-1', 'tag', 'New Name');
+        $result = ($this->handler)($command);
+
+        self::assertTrue($result->isFailure());
+        self::assertSame('You do not own this profile.', $result->getFailure()->getMessage());
+    }
+
+    public function testGroupBelongsToDifferentProfileReturnsForbidden(): void
+    {
+        $profile = new PatientProfile(new ProfileId('prof-1'), new UserId('acc-1'), 'John Doe', new \DateTimeImmutable('1990-01-01'), 'male', null, new \DateTimeImmutable(), new \DateTimeImmutable());
+        $this->profileRepo->method('findById')->willReturn($profile);
+
+        $group = TaxonomyGroup::create(new TaxonomyGroupId('group-1'), new ProfileId('prof-other'), 'category', 'Old');
+        $this->groupRepo->method('findById')->willReturn($group);
+
+        $command = new UpdateTaxonomyGroupCommand('group-1', 'prof-1', 'acc-1', 'tag', 'New Name');
+        $result = ($this->handler)($command);
+
+        self::assertTrue($result->isFailure());
+        self::assertSame('Taxonomy group does not belong to this profile.', $result->getFailure()->getMessage());
+    }
+
+    public function testEmptyNameReturnsValidationFailure(): void
+    {
+        $profile = new PatientProfile(new ProfileId('prof-1'), new UserId('acc-1'), 'John Doe', new \DateTimeImmutable('1990-01-01'), 'male', null, new \DateTimeImmutable(), new \DateTimeImmutable());
+        $this->profileRepo->method('findById')->willReturn($profile);
+
+        $group = TaxonomyGroup::create(new TaxonomyGroupId('group-1'), new ProfileId('prof-1'), 'category', 'Old');
+        $this->groupRepo->method('findById')->willReturn($group);
+
+        $command = new UpdateTaxonomyGroupCommand('group-1', 'prof-1', 'acc-1', 'tag', '   ');
+        $result = ($this->handler)($command);
+
+        self::assertTrue($result->isFailure());
+        self::assertSame('Taxonomy group name cannot be empty.', $result->getFailure()->getMessage());
+    }
 }

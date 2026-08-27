@@ -45,4 +45,25 @@ final class GetTaxonomyGroupsHandlerTest extends TestCase
         self::assertSame('group-1', $result->getValue()[0]['id']);
         self::assertSame('Test', $result->getValue()[0]['name']);
     }
+
+    public function testProfileNotFoundReturnsFailure(): void
+    {
+        $this->profileRepo->method('findById')->willReturn(null);
+        $query = new GetTaxonomyGroupsQuery('prof-1', 'acc-1');
+        $result = ($this->handler)($query);
+
+        self::assertTrue($result->isFailure());
+        self::assertSame('Profile not found.', $result->getFailure()->getMessage());
+    }
+
+    public function testProfileForbiddenReturnsFailure(): void
+    {
+        $profile = new PatientProfile(new ProfileId('prof-1'), new UserId('acc-other'), 'John Doe', new \DateTimeImmutable('1990-01-01'), 'male', null, new \DateTimeImmutable(), new \DateTimeImmutable());
+        $this->profileRepo->method('findById')->willReturn($profile);
+        $query = new GetTaxonomyGroupsQuery('prof-1', 'acc-1');
+        $result = ($this->handler)($query);
+
+        self::assertTrue($result->isFailure());
+        self::assertSame('You do not own this profile.', $result->getFailure()->getMessage());
+    }
 }

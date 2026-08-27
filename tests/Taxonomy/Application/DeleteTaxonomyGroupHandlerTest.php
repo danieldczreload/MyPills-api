@@ -47,4 +47,53 @@ final class DeleteTaxonomyGroupHandlerTest extends TestCase
 
         self::assertTrue($result->isSuccess());
     }
+
+    public function testProfileNotFoundReturnsFailure(): void
+    {
+        $this->profileRepo->method('findById')->willReturn(null);
+        $command = new DeleteTaxonomyGroupCommand('group-1', 'prof-1', 'acc-1');
+        $result = ($this->handler)($command);
+
+        self::assertTrue($result->isFailure());
+        self::assertSame('Profile not found.', $result->getFailure()->getMessage());
+    }
+
+    public function testProfileForbiddenReturnsFailure(): void
+    {
+        $profile = new PatientProfile(new ProfileId('prof-1'), new UserId('acc-other'), 'John Doe', new \DateTimeImmutable('1990-01-01'), 'male', null, new \DateTimeImmutable(), new \DateTimeImmutable());
+        $this->profileRepo->method('findById')->willReturn($profile);
+        $command = new DeleteTaxonomyGroupCommand('group-1', 'prof-1', 'acc-1');
+        $result = ($this->handler)($command);
+
+        self::assertTrue($result->isFailure());
+        self::assertSame('You do not own this profile.', $result->getFailure()->getMessage());
+    }
+
+    public function testGroupNotFoundReturnsFailure(): void
+    {
+        $profile = new PatientProfile(new ProfileId('prof-1'), new UserId('acc-1'), 'John Doe', new \DateTimeImmutable('1990-01-01'), 'male', null, new \DateTimeImmutable(), new \DateTimeImmutable());
+        $this->profileRepo->method('findById')->willReturn($profile);
+        $this->groupRepo->method('findById')->willReturn(null);
+
+        $command = new DeleteTaxonomyGroupCommand('group-1', 'prof-1', 'acc-1');
+        $result = ($this->handler)($command);
+
+        self::assertTrue($result->isFailure());
+        self::assertSame('Taxonomy group not found.', $result->getFailure()->getMessage());
+    }
+
+    public function testGroupBelongsToDifferentProfileReturnsForbidden(): void
+    {
+        $profile = new PatientProfile(new ProfileId('prof-1'), new UserId('acc-1'), 'John Doe', new \DateTimeImmutable('1990-01-01'), 'male', null, new \DateTimeImmutable(), new \DateTimeImmutable());
+        $this->profileRepo->method('findById')->willReturn($profile);
+
+        $group = TaxonomyGroup::create(new TaxonomyGroupId('group-1'), new ProfileId('prof-other'), 'category', 'Test');
+        $this->groupRepo->method('findById')->willReturn($group);
+
+        $command = new DeleteTaxonomyGroupCommand('group-1', 'prof-1', 'acc-1');
+        $result = ($this->handler)($command);
+
+        self::assertTrue($result->isFailure());
+        self::assertSame('Taxonomy group does not belong to this profile.', $result->getFailure()->getMessage());
+    }
 }

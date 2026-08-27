@@ -94,6 +94,9 @@ final class SyncProfileHandlerTest extends TestCase
         $tombstone = Tombstone::create(new ProfileId('prof-1'), 'medication', 'med-old');
         $this->tombstoneRepo->method('findByProfileIdSince')->willReturn([$tombstone]);
 
+        $taxGroup = \Taxonomy\Domain\TaxonomyGroup::create(new \Shared\Domain\ValueObject\TaxonomyGroupId('tax-1'), new ProfileId('prof-1'), 'category', 'Cardio', null, null, null, true, 'client-tax');
+        $this->taxonomyRepo->method('findByProfileId')->willReturn([$taxGroup]);
+
         $query = new SyncProfileQuery('prof-1', 'acc-1', $since);
         $result = ($this->handler)($query);
 
@@ -102,7 +105,37 @@ final class SyncProfileHandlerTest extends TestCase
         self::assertCount(1, $data['medications']);
         self::assertCount(1, $data['schedules']);
         self::assertCount(1, $data['doseEvents']);
+        self::assertCount(1, $data['taxonomyGroups']);
         self::assertCount(1, $data['tombstones']);
         self::assertSame('med-old', $data['tombstones'][0]['id']);
+        self::assertSame('tax-1', $data['taxonomyGroups'][0]['id']);
+    }
+
+    public function testSyncWithIntervalAndSpecificDaysSchedules(): void
+    {
+        $since = new \DateTimeImmutable('2026-08-01 00:00:00');
+        $profile = new PatientProfile(new ProfileId('prof-1'), new UserId('acc-1'), 'John Doe', new \DateTimeImmutable('1990-01-01'), 'male', null, $since, $since);
+        $this->profileRepo->method('findById')->willReturn($profile);
+
+        $medId = new MedicationId('med-1');
+        $medication = new Medication($medId, new ProfileId('prof-1'), 'Aspirin', '100mg', 'pill', 'take once', null, $since, $since);
+        $this->medicationRepo->method('findByProfileId')->willReturn([$medication]);
+
+        $intervalSched = new \Schedule\Domain\DailyIntervalSchedule(new ScheduleId('sch-int'), $medId, 6, new TimeOfDay(6, 0), new TimeOfDay(22, 0), $since, null, null, $since, $since);
+        $specSched = new \Schedule\Domain\SpecificDaysSchedule(new ScheduleId('sch-spec'), $medId, [1, 3, 5], [new TimeOfDay(9, 0)], $since, null, null, $since, $since);
+        $this->scheduleRepo->method('findByMedicationIds')->willReturn([$intervalSched, $specSched]);
+
+        $this->doseEventRepo->method('findByScheduleIdsAndRange')->willReturn([]);
+        $this->tombstoneRepo->method('findByProfileIdSince')->willReturn([]);
+        $this->taxonomyRepo->method('findByProfileId')->willReturn([]);
+
+        $query = new SyncProfileQuery('prof-1', 'acc-1', $since);
+        $result = ($this->handler)($query);
+
+        self::assertTrue($result->isSuccess());
+        $data = $result->getValue();
+        self::assertCount(2, $data['schedules']);
+        self::assertSame(6, $data['schedules'][0]['everyHours']);
+        self::assertSame([1, 3, 5], $data['schedules'][1]['daysOfWeek']);
     }
 }

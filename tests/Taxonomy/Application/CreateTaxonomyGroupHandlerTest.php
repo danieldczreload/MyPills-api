@@ -76,4 +76,30 @@ final class CreateTaxonomyGroupHandlerTest extends TestCase
         self::assertSame('Heart drugs', $data['description']);
         self::assertSame('client-1', $data['clientId']);
     }
+
+    public function testIdempotentCreationWithExistingClientId(): void
+    {
+        $profile = new PatientProfile(new ProfileId('prof-1'), new UserId('acc-1'), 'John Doe', new \DateTimeImmutable('1990-01-01'), 'male', null, new \DateTimeImmutable(), new \DateTimeImmutable());
+        $this->profileRepo->method('findById')->willReturn($profile);
+
+        $existing = \Taxonomy\Domain\TaxonomyGroup::create(
+            new \Shared\Domain\ValueObject\TaxonomyGroupId('group-existing'),
+            new ProfileId('prof-1'),
+            'category',
+            'Cardio',
+            'Heart drugs',
+            'heart',
+            12345,
+            true,
+            'client-1'
+        );
+        $this->groupRepo->method('findByClientId')->with('client-1')->willReturn($existing);
+        $this->groupRepo->expects(self::never())->method('save');
+
+        $command = new CreateTaxonomyGroupCommand('prof-1', 'acc-1', 'category', 'Cardio', 'Heart drugs', 'heart', 12345, true, 'client-1');
+
+        $result = ($this->handler)($command);
+        self::assertTrue($result->isSuccess());
+        self::assertSame('group-existing', $result->getValue()['id']);
+    }
 }

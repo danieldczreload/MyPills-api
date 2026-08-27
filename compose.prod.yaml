@@ -32,6 +32,31 @@ services:
     ports: !override
       - "127.0.0.1:${HTTP_PORT:-8088}:80"
 
+  worker:
+    image: ${IMAGES_PREFIX:-}app-php-prod
+    build:
+      context: .
+      target: frankenphp_prod
+    restart: unless-stopped
+    command: ["bin/console", "messenger:consume", "event.async", "--time-limit=3600", "--sleep=1"]
+    environment:
+      APP_ENV: prod
+      DATABASE_URL: postgresql://${POSTGRES_USER:-app}:${POSTGRES_PASSWORD}@database:5432/${POSTGRES_DB:-app}?serverVersion=16&charset=utf8
+      MESSENGER_TRANSPORT_DSN: ${MESSENGER_TRANSPORT_DSN:-doctrine://default}
+      OAUTH_TOKEN_ENCRYPTION_KEY: ${OAUTH_TOKEN_ENCRYPTION_KEY:?OAUTH_TOKEN_ENCRYPTION_KEY is required}
+      # Mismas vars que pueda necesitar el handler de calendario al refrescar tokens:
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:?GOOGLE_CLIENT_ID is required}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_WEB_CLIENT_ID: ${GOOGLE_WEB_CLIENT_ID:-}
+      GOOGLE_WEB_CLIENT_SECRET: ${GOOGLE_WEB_CLIENT_SECRET:-}
+      MICROSOFT_CLIENT_ID: ${MICROSOFT_CLIENT_ID:?MICROSOFT_CLIENT_ID is required}
+      MICROSOFT_CLIENT_SECRET: ${MICROSOFT_CLIENT_SECRET:-}
+      MICROSOFT_TENANT_ID: ${MICROSOFT_TENANT_ID:?MICROSOFT_TENANT_ID is required}
+      MICROSOFT_CALENDAR_REDIRECT_URI: ${MICROSOFT_CALENDAR_REDIRECT_URI:?MICROSOFT_CALENDAR_REDIRECT_URI is required}
+    depends_on:
+      database:
+        condition: service_healthy
+
   database:
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-app}

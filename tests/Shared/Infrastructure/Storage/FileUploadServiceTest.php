@@ -70,4 +70,49 @@ final class FileUploadServiceTest extends TestCase
         self::assertStringStartsWith('/uploads/', $data['url']);
         self::assertSame('image/jpeg', $data['mimeType']);
     }
+
+    public function testUploadAcceptsPng(): void
+    {
+        $filePath = $this->tempDir . '/test.png';
+        // PNG header
+        file_put_contents($filePath, "\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15c4");
+
+        $uploadedFile = new UploadedFile($filePath, 'test.png', 'image/png', null, true);
+        $result = $this->service->upload($uploadedFile);
+
+        self::assertTrue($result->isSuccess());
+        $data = $result->getValue();
+        self::assertStringStartsWith('/uploads/', $data['url']);
+        self::assertSame('image/png', $data['mimeType']);
+    }
+
+    public function testUploadRejectsOversizedFile(): void
+    {
+        $filePath = $this->tempDir . '/big.jpg';
+        // Create 5.5MB file
+        $fp = fopen($filePath, 'wb');
+        if ($fp !== false) {
+            fseek($fp, 5500000);
+            fwrite($fp, "\x00");
+            fclose($fp);
+        }
+
+        $uploadedFile = new UploadedFile($filePath, 'big.jpg', 'image/jpeg', null, true);
+        $result = $this->service->upload($uploadedFile);
+
+        self::assertTrue($result->isFailure());
+        self::assertStringContainsString('exceeds maximum allowed size', $result->getFailure()->getMessage());
+    }
+
+    public function testUploadRejectsCorruptedOrInvalidUpload(): void
+    {
+        $filePath = $this->tempDir . '/error.jpg';
+        file_put_contents($filePath, 'data');
+
+        $uploadedFile = new UploadedFile($filePath, 'error.jpg', 'image/jpeg', UPLOAD_ERR_PARTIAL, true);
+        $result = $this->service->upload($uploadedFile);
+
+        self::assertTrue($result->isFailure());
+        self::assertSame('Invalid or corrupted upload file.', $result->getFailure()->getMessage());
+    }
 }

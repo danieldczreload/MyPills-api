@@ -100,4 +100,38 @@ final class ValueObjectsTest extends TestCase
         $this->expectException(\InvalidArgumentException::class);
         new Email('invalid-email-address');
     }
+
+    public function testTaxonomyGroupIdCorrectness(): void
+    {
+        $idStr = '123e4567-e89b-12d3-a456-426614174000';
+        $taxId = new \Shared\Domain\ValueObject\TaxonomyGroupId($idStr);
+
+        self::assertSame($idStr, $taxId->value());
+        self::assertSame($idStr, (string) $taxId);
+
+        $otherTaxId = new \Shared\Domain\ValueObject\TaxonomyGroupId($idStr);
+        self::assertTrue($taxId->equals($otherTaxId));
+
+        $differentTaxId = new \Shared\Domain\ValueObject\TaxonomyGroupId('diff-id');
+        self::assertFalse($taxId->equals($differentTaxId));
+    }
+
+    public function testTaxonomyGroupIdGeneration(): void
+    {
+        $id1 = \Shared\Domain\ValueObject\TaxonomyGroupId::generate();
+        $id2 = \Shared\Domain\ValueObject\TaxonomyGroupId::generate();
+
+        self::assertNotEmpty($id1->value());
+        self::assertNotEquals($id1->value(), $id2->value());
+        self::assertMatchesRegularExpression(
+            '/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/',
+            $id1->value()
+        );
+    }
+
+    public function testTaxonomyGroupIdCannotBeEmpty(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        new \Shared\Domain\ValueObject\TaxonomyGroupId('');
+    }
 }
