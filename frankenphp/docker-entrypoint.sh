@@ -4,7 +4,11 @@ set -e
 if [ "$1" = 'frankenphp' ] || [ "$1" = 'php' ] || [ "$1" = 'bin/console' ]; then
 
 	if [ -z "$(ls -A 'vendor/' 2>/dev/null)" ]; then
-		composer install --prefer-dist --no-progress --no-interaction
+		if command -v composer >/dev/null 2>&1; then
+			composer install --prefer-dist --no-progress --no-interaction
+		else
+			echo 'vendor/ is empty and composer is not available; continuing with the image filesystem.'
+		fi
 	fi
 
 	# Display information about the current project

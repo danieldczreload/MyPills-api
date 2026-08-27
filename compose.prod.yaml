@@ -38,6 +38,12 @@ services:
       context: .
       target: frankenphp_prod
     restart: unless-stopped
+    # Prod image already contains /app (with vendor). Drop the compose.yaml
+    # bind-mount of ./:/app — that checkout has no vendor/, so the entrypoint
+    # tries `composer install` and the slim image has no composer (exit 127).
+    volumes: !override []
+    healthcheck:
+      disable: true
     command: ["bin/console", "messenger:consume", "event.async", "scheduler_reminders", "--time-limit=3600", "--sleep=1"]
     environment:
       APP_ENV: prod
