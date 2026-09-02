@@ -96,7 +96,6 @@ final class DoseEventControllerTest extends WebTestCase
             $headers,
             $this->encode([
                 'name' => 'Vitamin C',
-                'dosage' => '1000mg',
             ])
         );
         self::assertSame(Response::HTTP_CREATED, $client->getResponse()->getStatusCode());
@@ -116,6 +115,8 @@ final class DoseEventControllerTest extends WebTestCase
                 'type' => 'daily',
                 'startDate' => $now->format(\DateTimeInterface::ATOM),
                 'timesOfDay' => [['hour' => 9, 'minute' => 0]],
+                'doseAmount' => 1000,
+                'doseUnit' => 'mg',
             ])
         );
         self::assertSame(Response::HTTP_CREATED, $client->getResponse()->getStatusCode());

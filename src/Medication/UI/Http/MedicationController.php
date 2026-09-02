@@ -29,10 +29,9 @@ final class MedicationController extends ApiController
     #[Route('/profiles/{id}/medications', name: 'create', methods: ['POST'])]
     public function create(string $id, Request $request): JsonResponse
     {
-        /** @var array{name?: mixed, dosage?: mixed, instructions?: mixed, photoUrl?: mixed, clientId?: mixed, form?: mixed, colorToken?: mixed} $data */
+        /** @var array{name?: mixed, instructions?: mixed, photoUrl?: mixed, clientId?: mixed, form?: mixed, colorToken?: mixed} $data */
         $data = json_decode($request->getContent(), true) ?? [];
         $name = is_string($data['name'] ?? null) ? $data['name'] : '';
-        $dosage = is_string($data['dosage'] ?? null) ? $data['dosage'] : '';
         $instructions = isset($data['instructions']) && is_string($data['instructions']) ? $data['instructions'] : null;
         $photoUrl = isset($data['photoUrl']) && is_string($data['photoUrl']) ? $data['photoUrl'] : null;
         $clientId = isset($data['clientId']) && is_string($data['clientId']) ? $data['clientId'] : null;
@@ -43,7 +42,6 @@ final class MedicationController extends ApiController
             $id,
             $this->getAuthenticatedUserId()->value(),
             $name,
-            $dosage,
             $instructions,
             $photoUrl,
             $clientId,
@@ -59,10 +57,9 @@ final class MedicationController extends ApiController
     #[Route('/profiles/{id}/medications/{mid}', name: 'update', methods: ['PATCH'])]
     public function update(string $id, string $mid, Request $request): JsonResponse
     {
-        /** @var array{name?: mixed, dosage?: mixed, instructions?: mixed, photoUrl?: mixed, form?: mixed, colorToken?: mixed} $data */
+        /** @var array{name?: mixed, instructions?: mixed, photoUrl?: mixed, form?: mixed, colorToken?: mixed} $data */
         $data = json_decode($request->getContent(), true) ?? [];
         $name = is_string($data['name'] ?? null) ? $data['name'] : '';
-        $dosage = is_string($data['dosage'] ?? null) ? $data['dosage'] : '';
         $instructions = isset($data['instructions']) && is_string($data['instructions']) ? $data['instructions'] : null;
         $photoUrl = isset($data['photoUrl']) && is_string($data['photoUrl']) ? $data['photoUrl'] : null;
         $form = isset($data['form']) && is_string($data['form']) ? $data['form'] : 'pill';
@@ -73,7 +70,6 @@ final class MedicationController extends ApiController
             $id,
             $this->getAuthenticatedUserId()->value(),
             $name,
-            $dosage,
             $instructions,
             $photoUrl,
             $form,

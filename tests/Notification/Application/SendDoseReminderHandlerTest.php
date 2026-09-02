@@ -12,6 +12,7 @@ use Notification\Domain\DeviceToken;
 use Notification\Domain\DeviceTokenRepository;
 use Notification\Domain\PushNotificationGateway;
 use PHPUnit\Framework\TestCase;
+use Shared\Domain\ValueObject\Dose;
 use Shared\Domain\ValueObject\DoseEventId;
 use Shared\Domain\ValueObject\MedicationId;
 use Shared\Domain\ValueObject\ScheduleId;
@@ -44,10 +45,13 @@ final class SendDoseReminderHandlerTest extends TestCase
         $gateway->expects(self::once())->method('send')->with(
             'test-fcm-token',
             'Hora de tu medicación',
-            'Es hora de tomar Ibuprofeno (400mg)',
+            'Es hora de tomar Ibuprofeno (400 mg)',
             self::callback(function (array $data) {
                 return ($data['type'] ?? '') === 'dose_reminder'
                     && ($data['medicationName'] ?? '') === 'Ibuprofeno'
+                    && ($data['doseDisplay'] ?? '') === '400 mg'
+                    && ($data['doseAmount'] ?? '') === '400'
+                    && ($data['doseUnit'] ?? '') === 'mg'
                     && ($data['inAppBannersEnabled'] ?? '') === '1';
             })
         );
@@ -57,7 +61,7 @@ final class SendDoseReminderHandlerTest extends TestCase
             $doseId->value(),
             $accountId->value(),
             'Ibuprofeno',
-            '400mg',
+            Dose::of(400, 'mg'),
             $dose->scheduledAt(),
             10,
             true,
@@ -95,7 +99,7 @@ final class SendDoseReminderHandlerTest extends TestCase
             $doseId->value(),
             '00000000-0000-0000-0000-000000000002',
             'Ibuprofeno',
-            '400mg',
+            Dose::of(400, 'mg'),
             $dose->scheduledAt(),
             10,
             true,

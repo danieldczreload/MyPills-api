@@ -87,7 +87,7 @@ final class CalendarHandlersExtraTest extends TestCase
         $linkRepo->method('findByProfile')->willReturn([$link]);
 
         $medId = new MedicationId('med-1');
-        $med = new Medication($medId, new ProfileId('prof-1'), 'Aspirin', '100mg', 'pill', 'instructions', null, new \DateTimeImmutable(), new \DateTimeImmutable());
+        $med = new Medication($medId, new ProfileId('prof-1'), 'Aspirin', 'pill', 'instructions', null, new \DateTimeImmutable(), new \DateTimeImmutable());
         $medRepo->method('findByProfileId')->willReturn([$med]);
 
         $sched = new DailySchedule(new ScheduleId('sch-1'), $medId, [new TimeOfDay(8, 0)], new \DateTimeImmutable(), null, null, new \DateTimeImmutable(), new \DateTimeImmutable());
@@ -172,7 +172,7 @@ final class CalendarHandlersExtraTest extends TestCase
 
         // 2. No schedules
         $medId = new MedicationId('med-1');
-        $med = new Medication($medId, new ProfileId('prof-1'), 'Aspirin', '100mg', 'pill', 'instructions', null, new \DateTimeImmutable(), new \DateTimeImmutable());
+        $med = new Medication($medId, new ProfileId('prof-1'), 'Aspirin', 'pill', 'instructions', null, new \DateTimeImmutable(), new \DateTimeImmutable());
         $medRepo = $this->createMock(MedicationRepository::class);
         $medRepo->method('findByProfileId')->willReturn([$med]);
         $schedRepo->method('findByMedicationIds')->willReturn([]);
@@ -209,7 +209,7 @@ final class CalendarHandlersExtraTest extends TestCase
         $profileRepo->method('findById')->willReturn($profile);
 
         $medId = new MedicationId('med-1');
-        $med = new Medication($medId, new ProfileId('prof-1'), 'Aspirin', '100mg', 'pill', 'instructions', null, new \DateTimeImmutable(), new \DateTimeImmutable());
+        $med = new Medication($medId, new ProfileId('prof-1'), 'Aspirin', 'pill', 'instructions', null, new \DateTimeImmutable(), new \DateTimeImmutable());
         $medRepo->method('findByProfileId')->willReturn([$med]);
 
         $sched = new DailySchedule(new ScheduleId('sch-1'), $medId, [new TimeOfDay(8, 0)], new \DateTimeImmutable(), null, null, new \DateTimeImmutable(), new \DateTimeImmutable());

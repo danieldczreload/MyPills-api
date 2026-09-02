@@ -179,7 +179,6 @@ final class FeaturesIntegrationTest extends WebTestCase
             $headers,
             $this->encode([
                 'name' => 'Ibuprofen',
-                'dosage' => '400mg',
                 'instructions' => 'Take with food',
                 'photoUrl' => 'https://example.com/ibuprofen.jpg',
                 'clientId' => $medicationClientId,
@@ -200,7 +199,6 @@ final class FeaturesIntegrationTest extends WebTestCase
             $headers,
             $this->encode([
                 'name' => 'Ibuprofen',
-                'dosage' => '400mg',
                 'instructions' => 'Take with food',
                 'photoUrl' => 'https://example.com/ibuprofen.jpg',
                 'clientId' => $medicationClientId,
@@ -225,7 +223,6 @@ final class FeaturesIntegrationTest extends WebTestCase
             $headers,
             $this->encode([
                 'name' => 'Ibuprofen 600mg',
-                'dosage' => '600mg',
                 'instructions' => 'Take after meals',
                 'photoUrl' => 'https://example.com/ibuprofen-600.jpg',
             ])
@@ -233,7 +230,7 @@ final class FeaturesIntegrationTest extends WebTestCase
         self::assertSame(Response::HTTP_OK, $client->getResponse()->getStatusCode());
         $updatedMed = $this->decodeResponse($client->getResponse()->getContent());
         self::assertSame('Ibuprofen 600mg', $updatedMed['name']);
-        self::assertSame('600mg', $updatedMed['dosage']);
+        self::assertArrayNotHasKey('dosage', $updatedMed);
 
 
         // 6. Create Daily Schedule
@@ -254,12 +251,15 @@ final class FeaturesIntegrationTest extends WebTestCase
                     ['hour' => 20, 'minute' => 0],
                 ],
                 'clientId' => $scheduleClientId,
+                'doseAmount' => 400,
+                'doseUnit' => 'mg',
             ])
         );
         self::assertSame(Response::HTTP_CREATED, $client->getResponse()->getStatusCode());
         $schData = $this->decodeResponse($client->getResponse()->getContent());
         $scheduleId = $this->stringValue($schData, 'id');
         self::assertSame($scheduleClientId, $schData['clientId']);
+        self::assertSame(['amount' => 400, 'unit' => 'mg', 'display' => '400 mg'], $schData['dose']);
 
         // Test Idempotent creation of Schedule
         $client->request(
@@ -278,6 +278,8 @@ final class FeaturesIntegrationTest extends WebTestCase
                     ['hour' => 20, 'minute' => 0],
                 ],
                 'clientId' => $scheduleClientId,
+                'doseAmount' => 400,
+                'doseUnit' => 'mg',
             ])
         );
         self::assertSame(Response::HTTP_CREATED, $client->getResponse()->getStatusCode());
@@ -304,6 +306,7 @@ final class FeaturesIntegrationTest extends WebTestCase
         $firstDoseEvent = $doseEvents[0];
         $doseEventId = $this->stringValue($firstDoseEvent, 'id');
         $doseEventScheduledAt = $this->stringValue($firstDoseEvent, 'scheduledAt');
+        self::assertSame(['amount' => 400, 'unit' => 'mg', 'display' => '400 mg'], $firstDoseEvent['dose']);
 
         // 9. Track Dose (mark taken)
         $client->request(

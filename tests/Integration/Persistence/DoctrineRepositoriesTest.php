@@ -28,6 +28,7 @@ use Profile\Infrastructure\Persistence\DoctrineProfileRepository;
 use Profile\Infrastructure\Persistence\DoctrineTombstoneRepository;
 use Schedule\Domain\DailyIntervalSchedule;
 use Schedule\Domain\DailySchedule;
+use Shared\Domain\ValueObject\Dose;
 use Schedule\Domain\SpecificDaysSchedule;
 use Schedule\Domain\ValueObject\TimeOfDay;
 use Schedule\Infrastructure\Persistence\DoctrineScheduleRepository;
@@ -128,7 +129,7 @@ final class DoctrineRepositoriesTest extends KernelTestCase
 
         $profileId = ProfileId::generate();
         $medId = MedicationId::generate();
-        $medication = Medication::create($medId, $profileId, 'Paracetamol', '500mg', 'After meals', null, 'client-med-1');
+        $medication = Medication::create($medId, $profileId, 'Paracetamol', 'After meals', null, 'client-med-1');
 
         $medRepo->save($medication);
         $foundMed = $medRepo->findById($medId);
@@ -141,7 +142,7 @@ final class DoctrineRepositoriesTest extends KernelTestCase
         // Daily Schedule
         $dailyId = ScheduleId::generate();
         $now = new \DateTimeImmutable();
-        $dailySched = new DailySchedule($dailyId, $medId, [new TimeOfDay(8, 0), new TimeOfDay(20, 0)], $now, null, 'client-sch-1', $now, $now);
+        $dailySched = new DailySchedule($dailyId, $medId, [new TimeOfDay(8, 0), new TimeOfDay(20, 0)], $now, null, 'client-sch-1', $now, $now, Dose::of(500, 'mg'));
         $schedRepo->save($dailySched);
 
         // DailyInterval Schedule
@@ -157,6 +158,7 @@ final class DoctrineRepositoriesTest extends KernelTestCase
         $foundDaily = $schedRepo->findById($dailyId);
         self::assertNotNull($foundDaily);
         self::assertSame('daily', $foundDaily->type());
+        self::assertSame('500 mg', $foundDaily->dose()?->display());
 
         $foundInterval = $schedRepo->findById($intervalId);
         self::assertNotNull($foundInterval);

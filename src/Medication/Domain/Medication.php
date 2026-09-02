@@ -13,7 +13,6 @@ final class Medication
         private readonly MedicationId $id,
         private readonly ProfileId $profileId,
         private string $name,
-        private string $dosage,
         private ?string $instructions,
         private ?string $photoUrl,
         private ?string $clientId,
@@ -28,7 +27,6 @@ final class Medication
         MedicationId $id,
         ProfileId $profileId,
         string $name,
-        string $dosage,
         ?string $instructions = null,
         ?string $photoUrl = null,
         ?string $clientId = null,
@@ -36,7 +34,7 @@ final class Medication
         string $colorToken = 'sky'
     ): self {
         $now = new \DateTimeImmutable();
-        return new self($id, $profileId, $name, $dosage, $instructions, $photoUrl, $clientId, $now, $now, $form, $colorToken);
+        return new self($id, $profileId, $name, $instructions, $photoUrl, $clientId, $now, $now, $form, $colorToken);
     }
 
     public function id(): MedicationId
@@ -52,11 +50,6 @@ final class Medication
     public function name(): string
     {
         return $this->name;
-    }
-
-    public function dosage(): string
-    {
-        return $this->dosage;
     }
 
     public function instructions(): ?string
@@ -96,14 +89,12 @@ final class Medication
 
     public function update(
         string $name,
-        string $dosage,
         ?string $instructions,
         ?string $photoUrl,
         string $form = 'pill',
         string $colorToken = 'sky'
     ): void {
         $this->name = $name;
-        $this->dosage = $dosage;
         $this->instructions = $instructions;
         $this->photoUrl = $photoUrl;
         $this->form = $form;

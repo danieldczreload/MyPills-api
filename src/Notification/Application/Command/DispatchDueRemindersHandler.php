@@ -33,7 +33,7 @@ final class DispatchDueRemindersHandler
                 $reminder->doseEventId->value(),
                 $reminder->accountId->value(),
                 $reminder->medicationName,
-                $reminder->dosage,
+                $reminder->dose,
                 $reminder->scheduledAt,
                 $reminder->reminderMinutesBefore,
                 $reminder->doseRemindersEnabled,

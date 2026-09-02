@@ -5,15 +5,12 @@ declare(strict_types=1);
 namespace Profile\Application\Query;
 
 use DoseEvent\Domain\DoseEventRepository;
+use Medication\Application\MedicationView;
 use Medication\Domain\MedicationRepository;
 use Profile\Domain\ProfileRepository;
 use Profile\Domain\TombstoneRepository;
+use Schedule\Application\ScheduleView;
 use Schedule\Domain\ScheduleRepository;
-use Schedule\Domain\Schedule;
-use Schedule\Domain\DailySchedule;
-use Schedule\Domain\DailyIntervalSchedule;
-use Schedule\Domain\SpecificDaysSchedule;
-use Schedule\Domain\ValueObject\TimeOfDay;
 use Shared\Domain\Result;
 use Shared\Domain\Failure;
 use Shared\Domain\ValueObject\ProfileId;
@@ -61,21 +58,7 @@ final class SyncProfileHandler
             $medications,
             fn ($med) => $med->updatedAt() >= $query->since
         );
-        $formattedMedications = array_map(static function ($medication) {
-            return [
-                'id' => $medication->id()->value(),
-                'profileId' => $medication->profileId()->value(),
-                'name' => $medication->name(),
-                'dosage' => $medication->dosage(),
-                'instructions' => $medication->instructions(),
-                'photoUrl' => $medication->photoUrl(),
-                'clientId' => $medication->clientId(),
-                'form' => $medication->form(),
-                'colorToken' => $medication->colorToken(),
-                'createdAt' => $medication->createdAt()->format(\DateTimeInterface::ATOM),
-                'updatedAt' => $medication->updatedAt()->format(\DateTimeInterface::ATOM),
-            ];
-        }, $filteredMedications);
+        $formattedMedications = array_map(MedicationView::toArray(...), $filteredMedications);
 
         // 2. Fetch Schedules
         $medicationIds = array_map(static fn ($med) => $med->id(), $medications);
@@ -84,31 +67,7 @@ final class SyncProfileHandler
             $schedules,
             fn ($sch) => $sch->updatedAt() >= $query->since
         );
-        $formattedSchedules = array_map(static function (Schedule $schedule) {
-            $base = [
-                'id' => $schedule->id()->value(),
-                'medicationId' => $schedule->medicationId()->value(),
-                'type' => $schedule->type(),
-                'startDate' => $schedule->startDate()->format(\DateTimeInterface::ATOM),
-                'endDate' => $schedule->endDate()?->format(\DateTimeInterface::ATOM),
-                'clientId' => $schedule->clientId(),
-                'createdAt' => $schedule->createdAt()->format(\DateTimeInterface::ATOM),
-                'updatedAt' => $schedule->updatedAt()->format(\DateTimeInterface::ATOM),
-            ];
-
-            if ($schedule instanceof DailySchedule) {
-                $base['timesOfDay'] = array_map(static fn (TimeOfDay $t) => ['hour' => $t->hour(), 'minute' => $t->minute()], $schedule->timesOfDay());
-            } elseif ($schedule instanceof DailyIntervalSchedule) {
-                $base['everyHours'] = $schedule->everyHours();
-                $base['startAt'] = ['hour' => $schedule->startAt()->hour(), 'minute' => $schedule->startAt()->minute()];
-                $base['endAt'] = $schedule->endAt() ? ['hour' => $schedule->endAt()->hour(), 'minute' => $schedule->endAt()->minute()] : null;
-            } elseif ($schedule instanceof SpecificDaysSchedule) {
-                $base['daysOfWeek'] = $schedule->daysOfWeek();
-                $base['timesOfDay'] = array_map(static fn (TimeOfDay $t) => ['hour' => $t->hour(), 'minute' => $t->minute()], $schedule->timesOfDay());
-            }
-
-            return $base;
-        }, $filteredSchedules);
+        $formattedSchedules = array_map(ScheduleView::toArray(...), $filteredSchedules);
 
         // 3. Fetch DoseEvents
         $scheduleIds = array_map(static fn ($sch) => $sch->id(), $schedules);
@@ -120,7 +79,15 @@ final class SyncProfileHandler
             $doseEvents,
             fn ($event) => $event->updatedAt() >= $query->since
         );
-        $formattedDoseEvents = array_map(static function ($event) {
+
+        $scheduleById = [];
+        foreach ($schedules as $schedule) {
+            $scheduleById[$schedule->id()->value()] = $schedule;
+        }
+
+        $formattedDoseEvents = array_map(static function ($event) use ($scheduleById) {
+            $schedule = $scheduleById[$event->scheduleId()->value()] ?? null;
+
             return [
                 'id' => $event->id()->value(),
                 'medicationId' => $event->medicationId()->value(),
@@ -128,6 +95,7 @@ final class SyncProfileHandler
                 'scheduledAt' => $event->scheduledAt()->format(\DateTimeInterface::ATOM),
                 'status' => $event->status(),
                 'takenAt' => $event->takenAt()?->format(\DateTimeInterface::ATOM),
+                'dose' => $schedule?->dose()?->toApiArray(),
                 'clientId' => $event->clientId(),
                 'createdAt' => $event->createdAt()->format(\DateTimeInterface::ATOM),
                 'updatedAt' => $event->updatedAt()->format(\DateTimeInterface::ATOM),

@@ -84,7 +84,6 @@
 ```json
 {
   "name": "string",
-  "dosage": "500mg",
   "instructions": "Tomar con comida",
   "photoUrl": "https://...",
   "clientId": "uuid-device-minted"
@@ -96,7 +95,6 @@
 ```json
 {
   "name": "string",
-  "dosage": "500mg",
   "instructions": "string",
   "photoUrl": "https://..."
 }
@@ -115,8 +113,9 @@ Usa Doctrine STI sobre la tabla `schedules`, discriminador `type`.
 
 | Método | Path | Auth | Body | Status | Descripción |
 |--------|------|------|------|--------|-------------|
+| `GET`    | `/dose-units` | ✅ | — | `200` | Catálogo de unidades de dosis (`mg`, `ml`, …) |
 | `GET`    | `/profiles/{id}/schedules` | ✅ | — | `200` | Lista schedules del perfil |
-| `POST`   | `/profiles/{id}/schedules` | ✅ | Ver abajo | `201` | Crea un schedule |
+| `POST`   | `/profiles/{id}/schedules` | ✅ | Ver abajo | `201` | Crea un schedule (recordatorio) |
 | `DELETE` | `/profiles/{id}/schedules/{sid}` | ✅ | — | `204` | Elimina un schedule |
 
 ### Body — `POST /schedules`
@@ -130,9 +129,17 @@ Los campos varían según `type`:
   "type": "daily | daily_interval | specific_days",
   "startDate": "2025-01-01",
   "endDate": "2025-12-31",
+  "doseAmount": 500,
+  "doseUnit": "mg",
   "clientId": "uuid"
 }
 ```
+
+`doseAmount` (número > 0, hasta 4 decimales) y `doseUnit` son **obligatorios**. La dosis del schedule es la que llega en el push: `"Es hora de tomar Amoxicilina (500 mg)"`.
+
+Unidades (`GET /dose-units`): `mcg`, `mg`, `g`, `ml`, `drop`, `tsp`, `tbsp`, `iu`, `meq`, `mmol`, `tablet`, `capsule`, `puff`, `spray`, `patch`, `application`, `unit`.
+
+La respuesta incluye `dose` (`{ amount, unit, display }`, p.ej. `{ "amount": 500, "unit": "mg", "display": "500 mg" }`). Es `null` si el schedule es antiguo y no tiene dosis.
 
 ```json
 // ── type = "daily" ────────────────────────────────────────
@@ -189,6 +196,7 @@ Los campos varían según `type`:
 
 > `from` y `to` son **obligatorios** en el `GET`.
 > `takenAt` y `clientId` son opcionales.
+> El `GET` incluye `dose` (`{ amount, unit, display }`) copiado del schedule. Es `null` si el schedule es antiguo y no tiene dosis.
 
 ---
 

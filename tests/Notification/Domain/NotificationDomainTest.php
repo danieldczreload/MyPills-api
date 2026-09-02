@@ -8,6 +8,7 @@ use Notification\Domain\DeviceToken;
 use Notification\Domain\DueDoseReminder;
 use Notification\Domain\NotificationPreferences;
 use PHPUnit\Framework\TestCase;
+use Shared\Domain\ValueObject\Dose;
 use Shared\Domain\ValueObject\DoseEventId;
 use Shared\Domain\ValueObject\UserId;
 
@@ -39,7 +40,7 @@ final class NotificationDomainTest extends TestCase
             $doseId,
             $userId,
             'Ibuprofen',
-            '400mg',
+            Dose::of(400, 'mg'),
             $scheduledAt,
             15,
             true,
@@ -49,7 +50,7 @@ final class NotificationDomainTest extends TestCase
         self::assertTrue($reminder->doseEventId->equals($doseId));
         self::assertTrue($reminder->accountId->equals($userId));
         self::assertSame('Ibuprofen', $reminder->medicationName);
-        self::assertSame('400mg', $reminder->dosage);
+        self::assertSame('400 mg', $reminder->dose?->display());
         self::assertSame($scheduledAt, $reminder->scheduledAt);
         self::assertSame(15, $reminder->reminderMinutesBefore);
         self::assertTrue($reminder->doseRemindersEnabled);

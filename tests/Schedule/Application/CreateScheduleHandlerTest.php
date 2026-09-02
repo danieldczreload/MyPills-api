@@ -48,7 +48,7 @@ final class CreateScheduleHandlerTest extends TestCase
     public function testProfileNotFoundReturnsFailure(): void
     {
         $this->profileRepo->method('findById')->willReturn(null);
-        $cmd = new CreateScheduleCommand('prof-1', 'acc-1', 'med-1', 'daily', new \DateTimeImmutable(), null, [['hour' => 8, 'minute' => 0]]);
+        $cmd = new CreateScheduleCommand('prof-1', 'acc-1', 'med-1', 'daily', new \DateTimeImmutable(), '', '', timesOfDay: [['hour' => 8, 'minute' => 0]]);
 
         $result = ($this->handler)($cmd);
         self::assertTrue($result->isFailure());
@@ -60,7 +60,7 @@ final class CreateScheduleHandlerTest extends TestCase
         $profile = new PatientProfile(new ProfileId('prof-1'), new UserId('acc-other'), 'Name', new \DateTimeImmutable('1990-01-01'), 'male', null, new \DateTimeImmutable(), new \DateTimeImmutable());
         $this->profileRepo->method('findById')->willReturn($profile);
 
-        $cmd = new CreateScheduleCommand('prof-1', 'acc-1', 'med-1', 'daily', new \DateTimeImmutable(), null, [['hour' => 8, 'minute' => 0]]);
+        $cmd = new CreateScheduleCommand('prof-1', 'acc-1', 'med-1', 'daily', new \DateTimeImmutable(), '', '', timesOfDay: [['hour' => 8, 'minute' => 0]]);
         $result = ($this->handler)($cmd);
         self::assertTrue($result->isFailure());
         self::assertSame('You do not own this profile.', $result->getFailure()->getMessage());
@@ -72,7 +72,7 @@ final class CreateScheduleHandlerTest extends TestCase
         $this->profileRepo->method('findById')->willReturn($profile);
         $this->medicationRepo->method('findById')->willReturn(null);
 
-        $cmd = new CreateScheduleCommand('prof-1', 'acc-1', 'med-1', 'daily', new \DateTimeImmutable(), null, [['hour' => 8, 'minute' => 0]]);
+        $cmd = new CreateScheduleCommand('prof-1', 'acc-1', 'med-1', 'daily', new \DateTimeImmutable(), '', '', timesOfDay: [['hour' => 8, 'minute' => 0]]);
         $result = ($this->handler)($cmd);
         self::assertTrue($result->isFailure());
         self::assertSame('Medication not found.', $result->getFailure()->getMessage());
@@ -83,10 +83,10 @@ final class CreateScheduleHandlerTest extends TestCase
         $profile = new PatientProfile(new ProfileId('prof-1'), new UserId('acc-1'), 'Name', new \DateTimeImmutable('1990-01-01'), 'male', null, new \DateTimeImmutable(), new \DateTimeImmutable());
         $this->profileRepo->method('findById')->willReturn($profile);
 
-        $medication = new Medication(new MedicationId('med-1'), new ProfileId('prof-other'), 'Name', '10mg', 'pill', 'instr', null, new \DateTimeImmutable(), new \DateTimeImmutable());
+        $medication = new Medication(new MedicationId('med-1'), new ProfileId('prof-other'), 'Name', 'pill', 'instr', null, new \DateTimeImmutable(), new \DateTimeImmutable());
         $this->medicationRepo->method('findById')->willReturn($medication);
 
-        $cmd = new CreateScheduleCommand('prof-1', 'acc-1', 'med-1', 'daily', new \DateTimeImmutable(), null, [['hour' => 8, 'minute' => 0]]);
+        $cmd = new CreateScheduleCommand('prof-1', 'acc-1', 'med-1', 'daily', new \DateTimeImmutable(), '', '', timesOfDay: [['hour' => 8, 'minute' => 0]]);
         $result = ($this->handler)($cmd);
         self::assertTrue($result->isFailure());
         self::assertSame('Medication does not belong to this profile.', $result->getFailure()->getMessage());
@@ -97,13 +97,13 @@ final class CreateScheduleHandlerTest extends TestCase
         $profile = new PatientProfile(new ProfileId('prof-1'), new UserId('acc-1'), 'Name', new \DateTimeImmutable('1990-01-01'), 'male', null, new \DateTimeImmutable(), new \DateTimeImmutable());
         $this->profileRepo->method('findById')->willReturn($profile);
 
-        $medication = new Medication(new MedicationId('med-1'), new ProfileId('prof-1'), 'Name', '10mg', 'pill', 'instr', null, new \DateTimeImmutable(), new \DateTimeImmutable());
+        $medication = new Medication(new MedicationId('med-1'), new ProfileId('prof-1'), 'Name', 'pill', 'instr', null, new \DateTimeImmutable(), new \DateTimeImmutable());
         $this->medicationRepo->method('findById')->willReturn($medication);
 
         $existing = new DailySchedule(new ScheduleId('sched-1'), new MedicationId('med-1'), [new TimeOfDay(8, 0)], new \DateTimeImmutable(), null, 'client-id-1', new \DateTimeImmutable(), new \DateTimeImmutable());
         $this->scheduleRepo->method('findByClientId')->with('client-id-1')->willReturn($existing);
 
-        $cmd = new CreateScheduleCommand('prof-1', 'acc-1', 'med-1', 'daily', new \DateTimeImmutable(), null, [['hour' => 8, 'minute' => 0]], null, null, null, null, 'client-id-1');
+        $cmd = new CreateScheduleCommand('prof-1', 'acc-1', 'med-1', 'daily', new \DateTimeImmutable(), '', '', timesOfDay: [['hour' => 8, 'minute' => 0]], clientId: 'client-id-1');
         $result = ($this->handler)($cmd);
         self::assertTrue($result->isSuccess());
         /** @var array<string, mixed> $schedData */
@@ -116,19 +116,29 @@ final class CreateScheduleHandlerTest extends TestCase
         $profile = new PatientProfile(new ProfileId('prof-1'), new UserId('acc-1'), 'Name', new \DateTimeImmutable('1990-01-01'), 'male', null, new \DateTimeImmutable(), new \DateTimeImmutable());
         $this->profileRepo->method('findById')->willReturn($profile);
 
-        $medication = new Medication(new MedicationId('med-1'), new ProfileId('prof-1'), 'Name', '10mg', 'pill', 'instr', null, new \DateTimeImmutable(), new \DateTimeImmutable());
+        $medication = new Medication(new MedicationId('med-1'), new ProfileId('prof-1'), 'Name', 'pill', 'instr', null, new \DateTimeImmutable(), new \DateTimeImmutable());
         $this->medicationRepo->method('findById')->willReturn($medication);
 
         $this->scheduleRepo->expects(self::once())->method('save');
         $this->eventBus->expects(self::once())->method('publish')->with(self::isInstanceOf(ScheduleCreatedEvent::class));
 
-        $cmd = new CreateScheduleCommand('prof-1', 'acc-1', 'med-1', 'daily', new \DateTimeImmutable(), null, [['hour' => 8, 'minute' => 0]]);
+        $cmd = new CreateScheduleCommand(
+            'prof-1',
+            'acc-1',
+            'med-1',
+            'daily',
+            new \DateTimeImmutable(),
+            '400',
+            'mg',
+            timesOfDay: [['hour' => 8, 'minute' => 0]]
+        );
         $result = ($this->handler)($cmd);
 
         self::assertTrue($result->isSuccess());
         /** @var array<string, mixed> $schedData */
         $schedData = $result->getValue();
         self::assertSame('daily', $schedData['type']);
+        self::assertSame(['amount' => 400, 'unit' => 'mg', 'display' => '400 mg'], $schedData['dose']);
     }
 
     public function testCreateDailyIntervalScheduleSuccess(): void
@@ -136,7 +146,7 @@ final class CreateScheduleHandlerTest extends TestCase
         $profile = new PatientProfile(new ProfileId('prof-1'), new UserId('acc-1'), 'Name', new \DateTimeImmutable('1990-01-01'), 'male', null, new \DateTimeImmutable(), new \DateTimeImmutable());
         $this->profileRepo->method('findById')->willReturn($profile);
 
-        $medication = new Medication(new MedicationId('med-1'), new ProfileId('prof-1'), 'Name', '10mg', 'pill', 'instr', null, new \DateTimeImmutable(), new \DateTimeImmutable());
+        $medication = new Medication(new MedicationId('med-1'), new ProfileId('prof-1'), 'Name', 'pill', 'instr', null, new \DateTimeImmutable(), new \DateTimeImmutable());
         $this->medicationRepo->method('findById')->willReturn($medication);
 
         $this->scheduleRepo->expects(self::once())->method('save');
@@ -148,11 +158,11 @@ final class CreateScheduleHandlerTest extends TestCase
             'med-1',
             'daily_interval',
             new \DateTimeImmutable(),
-            null,
-            null,
-            4,
-            ['hour' => 8, 'minute' => 0],
-            ['hour' => 20, 'minute' => 0]
+            '5',
+            'ml',
+            everyHours: 4,
+            startAt: ['hour' => 8, 'minute' => 0],
+            endAt: ['hour' => 20, 'minute' => 0]
         );
         $result = ($this->handler)($cmd);
 
@@ -161,6 +171,7 @@ final class CreateScheduleHandlerTest extends TestCase
         $schedData = $result->getValue();
         self::assertSame('daily_interval', $schedData['type']);
         self::assertSame(4, $schedData['everyHours']);
+        self::assertSame(['amount' => 5, 'unit' => 'ml', 'display' => '5 ml'], $schedData['dose']);
     }
 
     public function testCreateSpecificDaysScheduleSuccess(): void
@@ -168,7 +179,7 @@ final class CreateScheduleHandlerTest extends TestCase
         $profile = new PatientProfile(new ProfileId('prof-1'), new UserId('acc-1'), 'Name', new \DateTimeImmutable('1990-01-01'), 'male', null, new \DateTimeImmutable(), new \DateTimeImmutable());
         $this->profileRepo->method('findById')->willReturn($profile);
 
-        $medication = new Medication(new MedicationId('med-1'), new ProfileId('prof-1'), 'Name', '10mg', 'pill', 'instr', null, new \DateTimeImmutable(), new \DateTimeImmutable());
+        $medication = new Medication(new MedicationId('med-1'), new ProfileId('prof-1'), 'Name', 'pill', 'instr', null, new \DateTimeImmutable(), new \DateTimeImmutable());
         $this->medicationRepo->method('findById')->willReturn($medication);
 
         $this->scheduleRepo->expects(self::once())->method('save');
@@ -180,12 +191,10 @@ final class CreateScheduleHandlerTest extends TestCase
             'med-1',
             'specific_days',
             new \DateTimeImmutable(),
-            null,
-            [['hour' => 9, 'minute' => 0]],
-            null,
-            null,
-            null,
-            [1, 3, 5]
+            '1',
+            'tablet',
+            timesOfDay: [['hour' => 9, 'minute' => 0]],
+            daysOfWeek: [1, 3, 5]
         );
         $result = ($this->handler)($cmd);
 
@@ -194,6 +203,7 @@ final class CreateScheduleHandlerTest extends TestCase
         $schedData = $result->getValue();
         self::assertSame('specific_days', $schedData['type']);
         self::assertSame([1, 3, 5], $schedData['daysOfWeek']);
+        self::assertSame(['amount' => 1, 'unit' => 'tablet', 'display' => '1 tablet'], $schedData['dose']);
     }
 
     public function testCreateInvalidTypeReturnsValidationFailure(): void
@@ -201,13 +211,60 @@ final class CreateScheduleHandlerTest extends TestCase
         $profile = new PatientProfile(new ProfileId('prof-1'), new UserId('acc-1'), 'Name', new \DateTimeImmutable('1990-01-01'), 'male', null, new \DateTimeImmutable(), new \DateTimeImmutable());
         $this->profileRepo->method('findById')->willReturn($profile);
 
-        $medication = new Medication(new MedicationId('med-1'), new ProfileId('prof-1'), 'Name', '10mg', 'pill', 'instr', null, new \DateTimeImmutable(), new \DateTimeImmutable());
+        $medication = new Medication(new MedicationId('med-1'), new ProfileId('prof-1'), 'Name', 'pill', 'instr', null, new \DateTimeImmutable(), new \DateTimeImmutable());
         $this->medicationRepo->method('findById')->willReturn($medication);
 
-        $cmd = new CreateScheduleCommand('prof-1', 'acc-1', 'med-1', 'unknown_type', new \DateTimeImmutable());
+        $cmd = new CreateScheduleCommand(
+            'prof-1',
+            'acc-1',
+            'med-1',
+            'unknown_type',
+            new \DateTimeImmutable(),
+            '1',
+            'tablet'
+        );
         $result = ($this->handler)($cmd);
 
         self::assertTrue($result->isFailure());
         self::assertSame('Invalid schedule type.', $result->getFailure()->getMessage());
+    }
+
+    public function testMissingDoseReturnsValidationFailure(): void
+    {
+        $profile = new PatientProfile(new ProfileId('prof-1'), new UserId('acc-1'), 'Name', new \DateTimeImmutable('1990-01-01'), 'male', null, new \DateTimeImmutable(), new \DateTimeImmutable());
+        $this->profileRepo->method('findById')->willReturn($profile);
+
+        $medication = new Medication(new MedicationId('med-1'), new ProfileId('prof-1'), 'Name', 'pill', 'instr', null, new \DateTimeImmutable(), new \DateTimeImmutable());
+        $this->medicationRepo->method('findById')->willReturn($medication);
+
+        $cmd = new CreateScheduleCommand('prof-1', 'acc-1', 'med-1', 'daily', new \DateTimeImmutable(), '', '', timesOfDay: [['hour' => 8, 'minute' => 0]]);
+        $result = ($this->handler)($cmd);
+
+        self::assertTrue($result->isFailure());
+        self::assertSame('doseAmount and doseUnit are required.', $result->getFailure()->getMessage());
+    }
+
+    public function testInvalidDoseUnitReturnsValidationFailure(): void
+    {
+        $profile = new PatientProfile(new ProfileId('prof-1'), new UserId('acc-1'), 'Name', new \DateTimeImmutable('1990-01-01'), 'male', null, new \DateTimeImmutable(), new \DateTimeImmutable());
+        $this->profileRepo->method('findById')->willReturn($profile);
+
+        $medication = new Medication(new MedicationId('med-1'), new ProfileId('prof-1'), 'Name', 'pill', 'instr', null, new \DateTimeImmutable(), new \DateTimeImmutable());
+        $this->medicationRepo->method('findById')->willReturn($medication);
+
+        $cmd = new CreateScheduleCommand(
+            'prof-1',
+            'acc-1',
+            'med-1',
+            'daily',
+            new \DateTimeImmutable(),
+            '5',
+            'stones',
+            timesOfDay: [['hour' => 8, 'minute' => 0]]
+        );
+        $result = ($this->handler)($cmd);
+
+        self::assertTrue($result->isFailure());
+        self::assertSame('Invalid dose unit.', $result->getFailure()->getMessage());
     }
 }

@@ -9,6 +9,7 @@ use Schedule\Domain\DailyIntervalSchedule;
 use Schedule\Domain\DailySchedule;
 use Schedule\Domain\SpecificDaysSchedule;
 use Schedule\Domain\ValueObject\TimeOfDay;
+use Shared\Domain\ValueObject\Dose;
 use Shared\Domain\ValueObject\MedicationId;
 use Shared\Domain\ValueObject\ScheduleId;
 
@@ -59,7 +60,8 @@ final class ScheduleDomainTest extends TestCase
             null,
             'client-1',
             $start,
-            $start
+            $start,
+            Dose::of(500, 'mg')
         );
 
         self::assertTrue($schedule->id()->equals($id));
@@ -67,6 +69,7 @@ final class ScheduleDomainTest extends TestCase
         self::assertSame('daily', $schedule->type());
         self::assertCount(1, $schedule->timesOfDay());
         self::assertSame('client-1', $schedule->clientId());
+        self::assertSame('500 mg', $schedule->dose()?->display());
     }
 
     public function testDailyIntervalScheduleProperties(): void

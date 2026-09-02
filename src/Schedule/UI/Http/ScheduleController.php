@@ -6,7 +6,9 @@ namespace Schedule\UI\Http;
 
 use Schedule\Application\Command\CreateScheduleCommand;
 use Schedule\Application\Command\DeleteScheduleCommand;
+use Schedule\Application\Query\GetDoseUnitsQuery;
 use Schedule\Application\Query\GetSchedulesQuery;
+use Shared\Domain\ValueObject\Dose;
 use Shared\UI\Http\ApiController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -16,6 +18,12 @@ use Symfony\Component\Routing\Attribute\Route;
 #[Route('/api/v1', name: 'api_schedule_')]
 final class ScheduleController extends ApiController
 {
+    #[Route('/dose-units', name: 'dose_units', methods: ['GET'])]
+    public function doseUnits(): JsonResponse
+    {
+        return $this->respond($this->queryBus->ask(new GetDoseUnitsQuery()));
+    }
+
     #[Route('/profiles/{id}/schedules', name: 'list', methods: ['GET'])]
     public function list(string $id): JsonResponse
     {
@@ -38,7 +46,9 @@ final class ScheduleController extends ApiController
          *     startAt?: mixed,
          *     endAt?: mixed,
          *     daysOfWeek?: mixed,
-         *     clientId?: mixed
+         *     clientId?: mixed,
+         *     doseAmount?: mixed,
+         *     doseUnit?: mixed
          * } $data */
         $data = json_decode($request->getContent(), true) ?? [];
 
@@ -71,6 +81,8 @@ final class ScheduleController extends ApiController
         $type = is_string($data['type'] ?? null) ? $data['type'] : '';
         $everyHours = isset($data['everyHours']) && (is_int($data['everyHours']) || is_numeric($data['everyHours'])) ? (int) $data['everyHours'] : null;
         $clientId = isset($data['clientId']) && is_string($data['clientId']) ? $data['clientId'] : null;
+        $doseUnit = is_string($data['doseUnit'] ?? null) ? $data['doseUnit'] : '';
+        $doseAmount = $this->stringifyDoseAmount($data['doseAmount'] ?? null);
 
         $command = new CreateScheduleCommand(
             $id,
@@ -78,6 +90,8 @@ final class ScheduleController extends ApiController
             $medicationId,
             $type,
             $startDate,
+            $doseAmount,
+            $doseUnit,
             $endDate,
             $timesOfDay,
             $everyHours,
@@ -99,5 +113,18 @@ final class ScheduleController extends ApiController
         $result = $this->commandBus->dispatch($command);
 
         return $this->respond($result, Response::HTTP_NO_CONTENT);
+    }
+
+    private function stringifyDoseAmount(mixed $value): string
+    {
+        if ($value === null || $value === '') {
+            return '';
+        }
+
+        if (is_int($value) || is_float($value) || is_string($value)) {
+            return Dose::normalizeInput($value);
+        }
+
+        return '';
     }
 }

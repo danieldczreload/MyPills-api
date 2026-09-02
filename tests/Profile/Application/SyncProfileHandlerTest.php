@@ -82,7 +82,7 @@ final class SyncProfileHandlerTest extends TestCase
         $this->profileRepo->method('findById')->willReturn($profile);
 
         $medId = new MedicationId('med-1');
-        $medication = new Medication($medId, new ProfileId('prof-1'), 'Aspirin', '100mg', 'pill', 'take once', null, $since, $since);
+        $medication = new Medication($medId, new ProfileId('prof-1'), 'Aspirin', 'pill', 'take once', null, $since, $since);
         $this->medicationRepo->method('findByProfileId')->willReturn([$medication]);
 
         $schedule = new DailySchedule(new ScheduleId('sch-1'), $medId, [new TimeOfDay(8, 0)], $since, null, null, $since, $since);
@@ -118,7 +118,7 @@ final class SyncProfileHandlerTest extends TestCase
         $this->profileRepo->method('findById')->willReturn($profile);
 
         $medId = new MedicationId('med-1');
-        $medication = new Medication($medId, new ProfileId('prof-1'), 'Aspirin', '100mg', 'pill', 'take once', null, $since, $since);
+        $medication = new Medication($medId, new ProfileId('prof-1'), 'Aspirin', 'pill', 'take once', null, $since, $since);
         $this->medicationRepo->method('findByProfileId')->willReturn([$medication]);
 
         $intervalSched = new \Schedule\Domain\DailyIntervalSchedule(new ScheduleId('sch-int'), $medId, 6, new TimeOfDay(6, 0), new TimeOfDay(22, 0), $since, null, null, $since, $since);

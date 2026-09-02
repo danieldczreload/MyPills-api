@@ -34,9 +34,11 @@ class SpecificDaysScheduleDoctrineEntity extends ScheduleDoctrineEntity
         ?\DateTimeImmutable $endDate,
         ?string $clientId,
         \DateTimeImmutable $createdAt,
-        \DateTimeImmutable $updatedAt
+        \DateTimeImmutable $updatedAt,
+        ?string $doseAmount = null,
+        ?string $doseUnit = null
     ) {
-        parent::__construct($id, $medicationId, $startDate, $endDate, $clientId, $createdAt, $updatedAt);
+        parent::__construct($id, $medicationId, $startDate, $endDate, $clientId, $createdAt, $updatedAt, $doseAmount, $doseUnit);
         $this->daysOfWeek = $daysOfWeek;
         $this->timesOfDay = $timesOfDay;
     }

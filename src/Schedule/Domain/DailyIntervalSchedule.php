@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Schedule\Domain;
 
 use Schedule\Domain\ValueObject\TimeOfDay;
+use Shared\Domain\ValueObject\Dose;
 use Shared\Domain\ValueObject\MedicationId;
 use Shared\Domain\ValueObject\ScheduleId;
 
@@ -20,9 +21,10 @@ final class DailyIntervalSchedule extends Schedule
         ?\DateTimeImmutable $endDate,
         ?string $clientId,
         \DateTimeImmutable $createdAt,
-        \DateTimeImmutable $updatedAt
+        \DateTimeImmutable $updatedAt,
+        ?Dose $dose = null
     ) {
-        parent::__construct($id, $medicationId, $startDate, $endDate, $clientId, $createdAt, $updatedAt);
+        parent::__construct($id, $medicationId, $startDate, $endDate, $clientId, $createdAt, $updatedAt, $dose);
         if ($this->everyHours <= 0) {
             throw new \InvalidArgumentException('everyHours must be positive.');
         }

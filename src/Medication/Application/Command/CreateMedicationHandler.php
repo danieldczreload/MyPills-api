@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Medication\Application\Command;
 
+use Medication\Application\MedicationView;
 use Medication\Domain\Medication;
 use Medication\Domain\MedicationRepository;
 use Profile\Domain\ProfileRepository;
@@ -23,7 +24,7 @@ final class CreateMedicationHandler
     }
 
     /**
-     * @return Result<array{id: string, profileId: string, name: string, dosage: string, instructions: ?string, photoUrl: ?string, clientId: ?string, form: string, colorToken: string, createdAt: string, updatedAt: string}>
+     * @return Result<array{id: string, profileId: string, name: string, instructions: ?string, photoUrl: ?string, clientId: ?string, form: string, colorToken: string, createdAt: string, updatedAt: string}>
      */
     public function __invoke(CreateMedicationCommand $command): Result
     {
@@ -42,27 +43,11 @@ final class CreateMedicationHandler
             return Result::failure(Failure::validation('Medication name cannot be empty.'));
         }
 
-        if (trim($command->dosage) === '') {
-            return Result::failure(Failure::validation('Dosage cannot be empty.'));
-        }
-
         // Check idempotency if clientId is provided
         if ($command->clientId !== null && $command->clientId !== '') {
             $existing = $this->medicationRepository->findByClientId($command->clientId);
             if ($existing !== null) {
-                return Result::success([
-                    'id' => $existing->id()->value(),
-                    'profileId' => $existing->profileId()->value(),
-                    'name' => $existing->name(),
-                    'dosage' => $existing->dosage(),
-                    'instructions' => $existing->instructions(),
-                    'photoUrl' => $existing->photoUrl(),
-                    'clientId' => $existing->clientId(),
-                    'form' => $existing->form(),
-                    'colorToken' => $existing->colorToken(),
-                    'createdAt' => $existing->createdAt()->format(\DateTimeInterface::ATOM),
-                    'updatedAt' => $existing->updatedAt()->format(\DateTimeInterface::ATOM),
-                ]);
+                return Result::success(MedicationView::toArray($existing));
             }
         }
 
@@ -70,7 +55,6 @@ final class CreateMedicationHandler
             MedicationId::generate(),
             $profileId,
             $command->name,
-            $command->dosage,
             $command->instructions,
             $command->photoUrl,
             $command->clientId,
@@ -80,18 +64,6 @@ final class CreateMedicationHandler
 
         $this->medicationRepository->save($medication);
 
-        return Result::success([
-            'id' => $medication->id()->value(),
-            'profileId' => $medication->profileId()->value(),
-            'name' => $medication->name(),
-            'dosage' => $medication->dosage(),
-            'instructions' => $medication->instructions(),
-            'photoUrl' => $medication->photoUrl(),
-            'clientId' => $medication->clientId(),
-            'form' => $medication->form(),
-            'colorToken' => $medication->colorToken(),
-            'createdAt' => $medication->createdAt()->format(\DateTimeInterface::ATOM),
-            'updatedAt' => $medication->updatedAt()->format(\DateTimeInterface::ATOM),
-        ]);
+        return Result::success(MedicationView::toArray($medication));
     }
 }

@@ -9,6 +9,7 @@ use Notification\Domain\DeviceTokenRepository;
 use Notification\Domain\InvalidDeviceToken;
 use Notification\Domain\PushNotificationGateway;
 use Shared\Domain\Result;
+use Shared\Domain\ValueObject\Dose;
 use Shared\Domain\ValueObject\DoseEventId;
 use Shared\Domain\ValueObject\UserId;
 use Symfony\Component\Messenger\Attribute\AsMessageHandler;
@@ -28,18 +29,18 @@ final class SendDoseReminderHandler
      */
     public function __invoke(SendDoseReminderCommand $command): Result
     {
-        $doseId = new DoseEventId($command->doseEventId);
-        $dose = $this->doseEventRepository->findById($doseId);
+        $doseEventId = new DoseEventId($command->doseEventId);
+        $doseEvent = $this->doseEventRepository->findById($doseEventId);
 
         // Guard: Idempotency & state check
-        if ($dose === null || $dose->status() !== 'pending' || $dose->reminderSentAt() !== null) {
+        if ($doseEvent === null || $doseEvent->status() !== 'pending' || $doseEvent->reminderSentAt() !== null) {
             return Result::success(['sent' => 0, 'skipped' => true]);
         }
 
         // If user disabled both push and in-app, mark sent without broadcasting
         if (!$command->doseRemindersEnabled && !$command->inAppBannersEnabled) {
-            $dose->markReminderSent(new \DateTimeImmutable());
-            $this->doseEventRepository->save($dose);
+            $doseEvent->markReminderSent(new \DateTimeImmutable());
+            $this->doseEventRepository->save($doseEvent);
             return Result::success(['sent' => 0, 'disabled' => true]);
         }
 
@@ -48,13 +49,18 @@ final class SendDoseReminderHandler
         $failed = 0;
 
         $title = 'Hora de tu medicación';
-        $body = sprintf('Es hora de tomar %s%s', $command->medicationName, $command->dosage !== '' ? ' (' . $command->dosage . ')' : '');
+        $doseDisplay = $command->dose?->display();
+        $body = sprintf(
+            'Es hora de tomar %s%s',
+            $command->medicationName,
+            $doseDisplay !== null ? ' (' . $doseDisplay . ')' : ''
+        );
 
         $payload = [
             'type' => 'dose_reminder',
             'doseEventId' => $command->doseEventId,
             'medicationName' => $command->medicationName,
-            'dosage' => $command->dosage,
+            ...($command->dose?->toPushData() ?? Dose::emptyPushData()),
             'scheduledAt' => $command->scheduledAt->format(\DateTimeInterface::ATOM),
             'anticipationMinutes' => (string) $command->reminderMinutesBefore,
             'doseRemindersEnabled' => $command->doseRemindersEnabled ? '1' : '0',
@@ -78,8 +84,8 @@ final class SendDoseReminderHandler
             }
         }
 
-        $dose->markReminderSent(new \DateTimeImmutable());
-        $this->doseEventRepository->save($dose);
+        $doseEvent->markReminderSent(new \DateTimeImmutable());
+        $this->doseEventRepository->save($doseEvent);
 
         return Result::success(['sent' => $sent, 'failed' => $failed]);
     }

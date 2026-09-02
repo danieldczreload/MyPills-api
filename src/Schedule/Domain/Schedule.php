@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Schedule\Domain;
 
+use Shared\Domain\ValueObject\Dose;
 use Shared\Domain\ValueObject\MedicationId;
 use Shared\Domain\ValueObject\ScheduleId;
 
@@ -16,7 +17,8 @@ abstract class Schedule
         protected readonly ?\DateTimeImmutable $endDate,
         protected readonly ?string $clientId,
         protected readonly \DateTimeImmutable $createdAt,
-        protected readonly \DateTimeImmutable $updatedAt
+        protected readonly \DateTimeImmutable $updatedAt,
+        protected readonly ?Dose $dose = null
     ) {
     }
 
@@ -53,6 +55,11 @@ abstract class Schedule
     public function updatedAt(): \DateTimeImmutable
     {
         return $this->updatedAt;
+    }
+
+    public function dose(): ?Dose
+    {
+        return $this->dose;
     }
 
     abstract public function type(): string;

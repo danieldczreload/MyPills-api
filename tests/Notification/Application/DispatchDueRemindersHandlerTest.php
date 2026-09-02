@@ -12,6 +12,7 @@ use Notification\Domain\DueDoseReminderRepository;
 use PHPUnit\Framework\TestCase;
 use Shared\Application\Bus\CommandBus;
 use Shared\Domain\Result;
+use Shared\Domain\ValueObject\Dose;
 use Shared\Domain\ValueObject\DoseEventId;
 use Shared\Domain\ValueObject\UserId;
 
@@ -24,7 +25,7 @@ final class DispatchDueRemindersHandlerTest extends TestCase
             new DoseEventId('00000000-0000-0000-0000-000000000001'),
             new UserId('00000000-0000-0000-0000-000000000002'),
             'Paracetamol',
-            '500mg',
+            Dose::of(500, 'mg'),
             $now,
             0,
             true,

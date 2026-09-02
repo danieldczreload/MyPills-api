@@ -172,7 +172,6 @@ Create payload:
 ```json
 {
   "name": "Ibuprofen",
-  "dosage": "400mg",
   "instructions": "Take with food",
   "photoUrl": "https://...",
   "clientId": "device-generated-uuid"
@@ -195,9 +194,13 @@ Common fields:
   "type": "daily | daily_interval | specific_days",
   "startDate": "2026-08-03",
   "endDate": "2026-12-31",
+  "doseAmount": 5,
+  "doseUnit": "ml",
   "clientId": "device-generated-uuid"
 }
 ```
+
+`doseAmount` and `doseUnit` are required. Fetch the picker catalog from `GET /api/v1/dose-units`. The reminder push and calendar event use this schedule dose. Medication has no dosage field.
 
 Schedule variants:
 
@@ -225,6 +228,8 @@ Create/update payload:
 ```
 
 The UI must support at least `pending`, `taken`, and `skipped` states. `takenAt` is only meaningful for a taken event.
+
+List responses include `dose: { amount, unit, display }` from the schedule so the today view can show “take 5 ml” without a local join. `dose` is `null` on legacy schedules.
 
 ## 7. Push Notifications
 
@@ -409,7 +414,7 @@ The client should show these states:
 
 Each dose event becomes one calendar event:
 
-- Title: `Take Medication: {medication name} ({dosage})`.
+- Title: `Take Medication: {medication name} ({schedule dose})`. If the schedule has no dose, the title is just the medication name.
 - Description: instructions, dose status, and scheduled time.
 - Time: scheduled dose time, 30-minute duration.
 - Google events use the event's own timezone offset; Microsoft events are sent in UTC.

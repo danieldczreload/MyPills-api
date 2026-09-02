@@ -89,6 +89,10 @@ final class SyncCalendarHandler
 
             $medicationIds = array_map(static fn ($med) => $med->id(), $medications);
             $schedules = $this->scheduleRepository->findByMedicationIds($medicationIds);
+            $scheduleMap = [];
+            foreach ($schedules as $schedule) {
+                $scheduleMap[$schedule->id()->value()] = $schedule;
+            }
             $scheduleIds = array_map(static fn ($sch) => $sch->id(), $schedules);
 
             if (count($scheduleIds) === 0) {
@@ -111,6 +115,7 @@ final class SyncCalendarHandler
                     $link,
                     $doseEvents,
                     $medicationMap,
+                    $scheduleMap,
                     $eventsCreated,
                     $eventsUpdated
                 );
@@ -146,12 +151,13 @@ final class SyncCalendarHandler
     /**
      * @param \DoseEvent\Domain\DoseEvent[] $doseEvents
      * @param array<string, \Medication\Domain\Medication> $medicationMap
+     * @param array<string, \Schedule\Domain\Schedule> $scheduleMap
      * @param-out int $eventsCreated
      * @param-out int $eventsUpdated
      *
      * @return array{provider: string, reason: string, detail?: string}|null Per-link failure detail, null on success.
      */
-    private function syncLink(CalendarLink $link, array $doseEvents, array $medicationMap, int &$eventsCreated, int &$eventsUpdated): ?array
+    private function syncLink(CalendarLink $link, array $doseEvents, array $medicationMap, array $scheduleMap, int &$eventsCreated, int &$eventsUpdated): ?array
     {
         try {
             $gateway = $this->providerResolver->resolveString($link->provider());
@@ -199,7 +205,11 @@ final class SyncCalendarHandler
                 continue;
             }
 
-            $title = sprintf('Take Medication: %s (%s)', $med->name(), $med->dosage());
+            $schedule = $scheduleMap[$event->scheduleId()->value()] ?? null;
+            $doseDisplay = $schedule?->dose()?->display();
+            $title = $doseDisplay !== null
+                ? sprintf('Take Medication: %s (%s)', $med->name(), $doseDisplay)
+                : sprintf('Take Medication: %s', $med->name());
             $description = sprintf(
                 "Instructions: %s\nStatus: %s\nScheduled At: %s",
                 $med->instructions() ?? 'None',

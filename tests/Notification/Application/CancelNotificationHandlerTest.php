@@ -53,7 +53,6 @@ final class CancelNotificationHandlerTest extends TestCase
             $medicationId,
             $profileId,
             'Paracetamol',
-            '500mg',
             'With water'
         );
 

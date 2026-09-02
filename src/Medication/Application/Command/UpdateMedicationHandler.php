@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Medication\Application\Command;
 
+use Medication\Application\MedicationView;
 use Medication\Domain\MedicationRepository;
 use Profile\Domain\ProfileRepository;
 use Shared\Domain\Result;
@@ -22,7 +23,7 @@ final class UpdateMedicationHandler
     }
 
     /**
-     * @return Result<array{id: string, profileId: string, name: string, dosage: string, instructions: ?string, photoUrl: ?string, clientId: ?string, form: string, colorToken: string, createdAt: string, updatedAt: string}>
+     * @return Result<array{id: string, profileId: string, name: string, instructions: ?string, photoUrl: ?string, clientId: ?string, form: string, colorToken: string, createdAt: string, updatedAt: string}>
      */
     public function __invoke(UpdateMedicationCommand $command): Result
     {
@@ -52,13 +53,8 @@ final class UpdateMedicationHandler
             return Result::failure(Failure::validation('Medication name cannot be empty.'));
         }
 
-        if (trim($command->dosage) === '') {
-            return Result::failure(Failure::validation('Dosage cannot be empty.'));
-        }
-
         $medication->update(
             $command->name,
-            $command->dosage,
             $command->instructions,
             $command->photoUrl,
             $command->form,
@@ -66,18 +62,6 @@ final class UpdateMedicationHandler
         );
         $this->medicationRepository->save($medication);
 
-        return Result::success([
-            'id' => $medication->id()->value(),
-            'profileId' => $medication->profileId()->value(),
-            'name' => $medication->name(),
-            'dosage' => $medication->dosage(),
-            'instructions' => $medication->instructions(),
-            'photoUrl' => $medication->photoUrl(),
-            'clientId' => $medication->clientId(),
-            'form' => $medication->form(),
-            'colorToken' => $medication->colorToken(),
-            'createdAt' => $medication->createdAt()->format(\DateTimeInterface::ATOM),
-            'updatedAt' => $medication->updatedAt()->format(\DateTimeInterface::ATOM),
-        ]);
+        return Result::success(MedicationView::toArray($medication));
     }
 }

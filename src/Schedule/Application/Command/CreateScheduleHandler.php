@@ -6,7 +6,7 @@ namespace Schedule\Application\Command;
 
 use Medication\Domain\MedicationRepository;
 use Profile\Domain\ProfileRepository;
-use Schedule\Domain\Schedule;
+use Schedule\Application\ScheduleView;
 use Schedule\Domain\DailySchedule;
 use Schedule\Domain\DailyIntervalSchedule;
 use Schedule\Domain\SpecificDaysSchedule;
@@ -16,6 +16,8 @@ use Schedule\Domain\ValueObject\TimeOfDay;
 use Shared\Application\Bus\EventBus;
 use Shared\Domain\Result;
 use Shared\Domain\Failure;
+use Shared\Domain\ValueObject\Dose;
+use Shared\Domain\ValueObject\DoseUnit;
 use Shared\Domain\ValueObject\MedicationId;
 use Shared\Domain\ValueObject\ProfileId;
 use Shared\Domain\ValueObject\ScheduleId;
@@ -63,9 +65,16 @@ final class CreateScheduleHandler
         if ($command->clientId !== null && $command->clientId !== '') {
             $existing = $this->scheduleRepository->findByClientId($command->clientId);
             if ($existing !== null) {
-                return Result::success($this->formatSchedule($existing));
+                return Result::success(ScheduleView::toArray($existing));
             }
         }
+
+        $doseResult = $this->parseDose($command->doseAmount, $command->doseUnit);
+        if ($doseResult->isFailure()) {
+            return Result::failure($doseResult->getFailure());
+        }
+        /** @var Dose $dose */
+        $dose = $doseResult->getValue();
 
         $scheduleId = ScheduleId::generate();
         $now = new \DateTimeImmutable();
@@ -86,7 +95,8 @@ final class CreateScheduleHandler
                 $command->endDate,
                 $command->clientId,
                 $now,
-                $now
+                $now,
+                $dose
             );
         } elseif ($command->type === 'daily_interval') {
             if ($command->everyHours === null || $command->everyHours <= 0) {
@@ -108,7 +118,8 @@ final class CreateScheduleHandler
                 $command->endDate,
                 $command->clientId,
                 $now,
-                $now
+                $now,
+                $dose
             );
         } elseif ($command->type === 'specific_days') {
             if ($command->daysOfWeek === null || count($command->daysOfWeek) === 0) {
@@ -130,7 +141,8 @@ final class CreateScheduleHandler
                 $command->endDate,
                 $command->clientId,
                 $now,
-                $now
+                $now,
+                $dose
             );
         } else {
             return Result::failure(Failure::validation('Invalid schedule type.'));
@@ -145,36 +157,30 @@ final class CreateScheduleHandler
             $profile->id()->value()
         ));
 
-        return Result::success($this->formatSchedule($schedule));
+        return Result::success(ScheduleView::toArray($schedule));
     }
 
     /**
-     * @return array<string, mixed>
+     * @return Result<Dose>
      */
-    private function formatSchedule(Schedule $schedule): array
+    private function parseDose(string $amount, string $unit): Result
     {
-        $base = [
-            'id' => $schedule->id()->value(),
-            'medicationId' => $schedule->medicationId()->value(),
-            'type' => $schedule->type(),
-            'startDate' => $schedule->startDate()->format(\DateTimeInterface::ATOM),
-            'endDate' => $schedule->endDate()?->format(\DateTimeInterface::ATOM),
-            'clientId' => $schedule->clientId(),
-            'createdAt' => $schedule->createdAt()->format(\DateTimeInterface::ATOM),
-            'updatedAt' => $schedule->updatedAt()->format(\DateTimeInterface::ATOM),
-        ];
-
-        if ($schedule instanceof DailySchedule) {
-            $base['timesOfDay'] = array_map(static fn (TimeOfDay $t) => ['hour' => $t->hour(), 'minute' => $t->minute()], $schedule->timesOfDay());
-        } elseif ($schedule instanceof DailyIntervalSchedule) {
-            $base['everyHours'] = $schedule->everyHours();
-            $base['startAt'] = ['hour' => $schedule->startAt()->hour(), 'minute' => $schedule->startAt()->minute()];
-            $base['endAt'] = $schedule->endAt() ? ['hour' => $schedule->endAt()->hour(), 'minute' => $schedule->endAt()->minute()] : null;
-        } elseif ($schedule instanceof SpecificDaysSchedule) {
-            $base['daysOfWeek'] = $schedule->daysOfWeek();
-            $base['timesOfDay'] = array_map(static fn (TimeOfDay $t) => ['hour' => $t->hour(), 'minute' => $t->minute()], $schedule->timesOfDay());
+        if ($amount === '' || $unit === '') {
+            return Result::failure(Failure::validation(
+                'doseAmount and doseUnit are required.',
+                ['allowedUnits' => DoseUnit::codes()]
+            ));
         }
 
-        return $base;
+        try {
+            return Result::success(Dose::of($amount, $unit));
+        } catch (\ValueError) {
+            return Result::failure(Failure::validation(
+                'Invalid dose unit.',
+                ['allowedUnits' => DoseUnit::codes()]
+            ));
+        } catch (\InvalidArgumentException $exception) {
+            return Result::failure(Failure::validation($exception->getMessage()));
+        }
     }
 }

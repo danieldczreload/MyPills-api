@@ -183,7 +183,7 @@ final class CalendarHandlersTest extends TestCase
         $linkRepo->method('findByProfile')->willReturn([$link]);
 
         $medId = new MedicationId('med-1');
-        $med = new Medication($medId, new ProfileId('prof-1'), 'Aspirin', '100mg', 'pill', 'instructions', null, new \DateTimeImmutable(), new \DateTimeImmutable());
+        $med = new Medication($medId, new ProfileId('prof-1'), 'Aspirin', 'pill', 'instructions', null, new \DateTimeImmutable(), new \DateTimeImmutable());
         $medRepo->method('findByProfileId')->willReturn([$med]);
 
         $sched = new DailySchedule(new ScheduleId('sch-1'), $medId, [new TimeOfDay(8, 0)], new \DateTimeImmutable(), null, null, new \DateTimeImmutable(), new \DateTimeImmutable());

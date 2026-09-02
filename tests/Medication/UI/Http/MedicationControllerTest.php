@@ -107,7 +107,6 @@ final class MedicationControllerTest extends WebTestCase
             $headers,
             $this->encode([
                 'name' => 'Lisinopril',
-                'dosage' => '10mg',
                 'instructions' => 'In morning',
                 'form' => 'tablet',
                 'colorToken' => 'emerald',
@@ -134,7 +133,6 @@ final class MedicationControllerTest extends WebTestCase
             $headers,
             $this->encode([
                 'name' => 'Lisinopril 20mg',
-                'dosage' => '20mg',
                 'instructions' => 'With food',
                 'form' => 'capsule',
                 'colorToken' => 'amber',
@@ -143,7 +141,7 @@ final class MedicationControllerTest extends WebTestCase
         self::assertSame(Response::HTTP_OK, $client->getResponse()->getStatusCode());
         $updatedMed = $this->decodeResponse($client->getResponse()->getContent());
         self::assertSame('Lisinopril 20mg', $updatedMed['name']);
-        self::assertSame('20mg', $updatedMed['dosage']);
+        self::assertArrayNotHasKey('dosage', $updatedMed);
 
         // 6. Delete Medication
         $client->request('DELETE', '/api/v1/profiles/' . $profileId . '/medications/' . $medId, [], [], $headers);

@@ -43,7 +43,7 @@ final class MedicationHandlersTest extends TestCase
 
         // Profile not found
         $this->profileRepo->method('findById')->willReturn(null);
-        $res = $handler(new CreateMedicationCommand('prof-1', 'acc-1', 'Aspirin', '100mg'));
+        $res = $handler(new CreateMedicationCommand('prof-1', 'acc-1', 'Aspirin'));
         self::assertTrue($res->isFailure());
 
         // Profile forbidden
@@ -51,7 +51,7 @@ final class MedicationHandlersTest extends TestCase
         $this->profileRepo = $this->createMock(ProfileRepository::class);
         $this->profileRepo->method('findById')->willReturn($profile);
         $handler = new CreateMedicationHandler($this->medRepo, $this->profileRepo);
-        $res = $handler(new CreateMedicationCommand('prof-1', 'acc-1', 'Aspirin', '100mg'));
+        $res = $handler(new CreateMedicationCommand('prof-1', 'acc-1', 'Aspirin'));
         self::assertTrue($res->isFailure());
 
         // Empty name validation
@@ -59,17 +59,13 @@ final class MedicationHandlersTest extends TestCase
         $this->profileRepo = $this->createMock(ProfileRepository::class);
         $this->profileRepo->method('findById')->willReturn($profile);
         $handler = new CreateMedicationHandler($this->medRepo, $this->profileRepo);
-        $res = $handler(new CreateMedicationCommand('prof-1', 'acc-1', '  ', '100mg'));
-        self::assertTrue($res->isFailure());
-
-        // Empty dosage validation
-        $res = $handler(new CreateMedicationCommand('prof-1', 'acc-1', 'Aspirin', '  '));
+        $res = $handler(new CreateMedicationCommand('prof-1', 'acc-1', '  '));
         self::assertTrue($res->isFailure());
 
         // Idempotent return existing
-        $existing = new Medication(new MedicationId('med-1'), new ProfileId('prof-1'), 'Aspirin', '100mg', null, null, 'cid-1', new \DateTimeImmutable(), new \DateTimeImmutable());
+        $existing = new Medication(new MedicationId('med-1'), new ProfileId('prof-1'), 'Aspirin', null, null, 'cid-1', new \DateTimeImmutable(), new \DateTimeImmutable());
         $this->medRepo->method('findByClientId')->with('cid-1')->willReturn($existing);
-        $res = $handler(new CreateMedicationCommand('prof-1', 'acc-1', 'Aspirin', '100mg', null, null, 'cid-1'));
+        $res = $handler(new CreateMedicationCommand('prof-1', 'acc-1', 'Aspirin', null, null, 'cid-1'));
         self::assertTrue($res->isSuccess());
         /** @var array<string, mixed> $existingData */
         $existingData = $res->getValue();
@@ -79,7 +75,7 @@ final class MedicationHandlersTest extends TestCase
         $this->medRepo = $this->createMock(MedicationRepository::class);
         $this->medRepo->expects(self::once())->method('save');
         $handler = new CreateMedicationHandler($this->medRepo, $this->profileRepo);
-        $res = $handler(new CreateMedicationCommand('prof-1', 'acc-1', 'Ibuprofen', '400mg', 'With food', 'https://example.com/med.jpg'));
+        $res = $handler(new CreateMedicationCommand('prof-1', 'acc-1', 'Ibuprofen', 'With food', 'https://example.com/med.jpg'));
         self::assertTrue($res->isSuccess());
         /** @var array<string, mixed> $createdData */
         $createdData = $res->getValue();
@@ -91,18 +87,18 @@ final class MedicationHandlersTest extends TestCase
         $profile = new PatientProfile(new ProfileId('prof-1'), new UserId('acc-1'), 'Name', new \DateTimeImmutable('1990-01-01'), 'male', null, new \DateTimeImmutable(), new \DateTimeImmutable());
         $this->profileRepo->method('findById')->willReturn($profile);
 
-        $medication = new Medication(new MedicationId('med-1'), new ProfileId('prof-1'), 'Aspirin', '100mg', null, null, null, new \DateTimeImmutable(), new \DateTimeImmutable());
+        $medication = new Medication(new MedicationId('med-1'), new ProfileId('prof-1'), 'Aspirin', null, null, null, new \DateTimeImmutable(), new \DateTimeImmutable());
         $this->medRepo->method('findById')->willReturn($medication);
         $this->medRepo->expects(self::once())->method('save');
 
         $handler = new UpdateMedicationHandler($this->medRepo, $this->profileRepo);
-        $res = $handler(new UpdateMedicationCommand('med-1', 'prof-1', 'acc-1', 'Aspirin Cardio', '81mg', 'Daily at morning', 'https://pic.jpg'));
+        $res = $handler(new UpdateMedicationCommand('med-1', 'prof-1', 'acc-1', 'Aspirin Cardio', 'Daily at morning', 'https://pic.jpg'));
 
         self::assertTrue($res->isSuccess());
         /** @var array<string, mixed> $updatedData */
         $updatedData = $res->getValue();
         self::assertSame('Aspirin Cardio', $updatedData['name']);
-        self::assertSame('81mg', $updatedData['dosage']);
+        self::assertArrayNotHasKey('dosage', $updatedData);
     }
 
     public function testDeleteMedicationSuccess(): void
@@ -110,7 +106,7 @@ final class MedicationHandlersTest extends TestCase
         $profile = new PatientProfile(new ProfileId('prof-1'), new UserId('acc-1'), 'Name', new \DateTimeImmutable('1990-01-01'), 'male', null, new \DateTimeImmutable(), new \DateTimeImmutable());
         $this->profileRepo->method('findById')->willReturn($profile);
 
-        $medication = new Medication(new MedicationId('med-1'), new ProfileId('prof-1'), 'Aspirin', '100mg', null, null, null, new \DateTimeImmutable(), new \DateTimeImmutable());
+        $medication = new Medication(new MedicationId('med-1'), new ProfileId('prof-1'), 'Aspirin', null, null, null, new \DateTimeImmutable(), new \DateTimeImmutable());
         $this->medRepo->method('findById')->willReturn($medication);
         $this->medRepo->expects(self::once())->method('delete')->with($medication);
         $this->eventBus->expects(self::once())->method('publish')->with(self::isInstanceOf(MedicationDeletedEvent::class));
@@ -126,7 +122,7 @@ final class MedicationHandlersTest extends TestCase
         $profile = new PatientProfile(new ProfileId('prof-1'), new UserId('acc-1'), 'Name', new \DateTimeImmutable('1990-01-01'), 'male', null, new \DateTimeImmutable(), new \DateTimeImmutable());
         $this->profileRepo->method('findById')->willReturn($profile);
 
-        $medication = new Medication(new MedicationId('med-1'), new ProfileId('prof-1'), 'Aspirin', '100mg', null, null, null, new \DateTimeImmutable(), new \DateTimeImmutable());
+        $medication = new Medication(new MedicationId('med-1'), new ProfileId('prof-1'), 'Aspirin', null, null, null, new \DateTimeImmutable(), new \DateTimeImmutable());
         $this->medRepo->method('findByProfileId')->willReturn([$medication]);
 
         $handler = new GetMedicationsHandler($this->medRepo, $this->profileRepo);

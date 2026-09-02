@@ -10,7 +10,6 @@ final class CreateMedicationCommand
         public readonly string $profileId,
         public readonly string $accountId,
         public readonly string $name,
-        public readonly string $dosage,
         public readonly ?string $instructions = null,
         public readonly ?string $photoUrl = null,
         public readonly ?string $clientId = null,

@@ -36,6 +36,23 @@ final class ScheduleControllerTest extends WebTestCase
     }
 
     /**
+     * @return list<mixed>
+     */
+    private function decodeList(string|false $content): array
+    {
+        if ($content === false) {
+            throw new \RuntimeException('Response is empty.');
+        }
+
+        $data = json_decode($content, true, 512, JSON_THROW_ON_ERROR);
+        if (!is_array($data)) {
+            throw new \RuntimeException('Expected JSON list.');
+        }
+
+        return array_values($data);
+    }
+
+    /**
      * @param array<string, mixed> $data
      */
     private function stringValue(array $data, string $key): string
@@ -96,7 +113,6 @@ final class ScheduleControllerTest extends WebTestCase
             $headers,
             $this->encode([
                 'name' => 'Amoxicillin',
-                'dosage' => '500mg',
             ])
         );
         self::assertSame(Response::HTTP_CREATED, $client->getResponse()->getStatusCode());
@@ -150,11 +166,43 @@ final class ScheduleControllerTest extends WebTestCase
                 'startAt' => ['hour' => 8, 'minute' => 0],
                 'endAt' => ['hour' => 22, 'minute' => 0],
                 'clientId' => 'sched-cli-int-1',
+                'doseAmount' => 5,
+                'doseUnit' => 'ml',
             ])
         );
         self::assertSame(Response::HTTP_CREATED, $client->getResponse()->getStatusCode());
         $schedData = $this->decodeResponse($client->getResponse()->getContent());
         $schedId = $this->stringValue($schedData, 'id');
+        self::assertSame(['amount' => 5, 'unit' => 'ml', 'display' => '5 ml'], $schedData['dose']);
+
+        $client->request(
+            'POST',
+            '/api/v1/profiles/' . $profileId . '/schedules',
+            [],
+            [],
+            $headers,
+            $this->encode([
+                'medicationId' => $medicationId,
+                'type' => 'daily',
+                'startDate' => $now->format(\DateTimeInterface::ATOM),
+                'timesOfDay' => [['hour' => 8, 'minute' => 0]],
+            ])
+        );
+        self::assertSame(Response::HTTP_UNPROCESSABLE_ENTITY, $client->getResponse()->getStatusCode());
+
+        $client->request('GET', '/api/v1/dose-units', [], [], $headers);
+        self::assertSame(Response::HTTP_OK, $client->getResponse()->getStatusCode());
+        $units = $this->decodeList($client->getResponse()->getContent());
+        self::assertNotEmpty($units);
+        $codes = [];
+        foreach ($units as $unit) {
+            if (is_array($unit) && is_string($unit['code'] ?? null)) {
+                $codes[] = $unit['code'];
+            }
+        }
+        self::assertContains('mg', $codes);
+        self::assertContains('ml', $codes);
+        self::assertContains('tablet', $codes);
 
         // 7. Delete schedule
         $client->request('DELETE', '/api/v1/profiles/' . $profileId . '/schedules/' . $schedId, [], [], $headers);

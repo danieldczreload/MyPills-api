@@ -11,6 +11,7 @@ use Schedule\Domain\DailyIntervalSchedule;
 use Schedule\Domain\SpecificDaysSchedule;
 use Schedule\Domain\ValueObject\TimeOfDay;
 use Schedule\Domain\ScheduleRepository;
+use Shared\Domain\ValueObject\Dose;
 use Shared\Domain\ValueObject\MedicationId;
 use Shared\Domain\ValueObject\ScheduleId;
 
@@ -39,7 +40,9 @@ final class DoctrineScheduleRepository implements ScheduleRepository
                     $schedule->endDate(),
                     $schedule->clientId(),
                     $schedule->createdAt(),
-                    $schedule->updatedAt()
+                    $schedule->updatedAt(),
+                    $schedule->dose()?->amount(),
+                    $schedule->dose()?->unit()->value
                 );
             } elseif ($schedule instanceof DailyIntervalSchedule) {
                 $entity = new DailyIntervalScheduleDoctrineEntity(
@@ -52,7 +55,9 @@ final class DoctrineScheduleRepository implements ScheduleRepository
                     $schedule->endDate(),
                     $schedule->clientId(),
                     $schedule->createdAt(),
-                    $schedule->updatedAt()
+                    $schedule->updatedAt(),
+                    $schedule->dose()?->amount(),
+                    $schedule->dose()?->unit()->value
                 );
             } elseif ($schedule instanceof SpecificDaysSchedule) {
                 $times = array_map(static function (TimeOfDay $t) {
@@ -68,7 +73,9 @@ final class DoctrineScheduleRepository implements ScheduleRepository
                     $schedule->endDate(),
                     $schedule->clientId(),
                     $schedule->createdAt(),
-                    $schedule->updatedAt()
+                    $schedule->updatedAt(),
+                    $schedule->dose()?->amount(),
+                    $schedule->dose()?->unit()->value
                 );
             } else {
                 throw new \InvalidArgumentException('Unknown schedule class: ' . get_class($schedule));
@@ -82,6 +89,8 @@ final class DoctrineScheduleRepository implements ScheduleRepository
                 }, $schedule->timesOfDay());
                 $entity->setTimesOfDay($times);
             }
+            $entity->setDoseAmount($schedule->dose()?->amount());
+            $entity->setDoseUnit($schedule->dose()?->unit()->value);
             $entity->setUpdatedAt($schedule->updatedAt());
         }
 
@@ -152,6 +161,7 @@ final class DoctrineScheduleRepository implements ScheduleRepository
     {
         $id = new ScheduleId($entity->getId());
         $medicationId = new MedicationId($entity->getMedicationId());
+        $dose = Dose::tryFromStorage($entity->getDoseAmount(), $entity->getDoseUnit());
 
         if ($entity instanceof DailyScheduleDoctrineEntity) {
             $times = array_map(static function (array $t) {
@@ -166,7 +176,8 @@ final class DoctrineScheduleRepository implements ScheduleRepository
                 $entity->getEndDate(),
                 $entity->getClientId(),
                 $entity->getCreatedAt(),
-                $entity->getUpdatedAt()
+                $entity->getUpdatedAt(),
+                $dose
             );
         }
 
@@ -185,7 +196,8 @@ final class DoctrineScheduleRepository implements ScheduleRepository
                 $entity->getEndDate(),
                 $entity->getClientId(),
                 $entity->getCreatedAt(),
-                $entity->getUpdatedAt()
+                $entity->getUpdatedAt(),
+                $dose
             );
         }
 
@@ -204,7 +216,8 @@ final class DoctrineScheduleRepository implements ScheduleRepository
                 $entity->getEndDate(),
                 $entity->getClientId(),
                 $entity->getCreatedAt(),
-                $entity->getUpdatedAt()
+                $entity->getUpdatedAt(),
+                $dose
             );
         }
 

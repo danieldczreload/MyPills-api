@@ -151,7 +151,6 @@ final class NotificationCancellationEndpointTest extends WebTestCase
             $headers,
             $this->encode([
                 'name' => 'Omeprazol',
-                'dosage' => '20mg',
                 'instructions' => 'En ayunas',
             ])
         );
@@ -174,6 +173,8 @@ final class NotificationCancellationEndpointTest extends WebTestCase
                 'startDate' => $scheduleStart->format(\DateTimeInterface::ATOM),
                 'endDate' => $scheduleEnd->format(\DateTimeInterface::ATOM),
                 'timesOfDay' => [['hour' => 8, 'minute' => 0]],
+                'doseAmount' => 20,
+                'doseUnit' => 'mg',
             ])
         );
         self::assertSame(Response::HTTP_CREATED, $client->getResponse()->getStatusCode());

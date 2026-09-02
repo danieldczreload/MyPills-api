@@ -6,11 +6,7 @@ namespace Schedule\Application\Query;
 
 use Medication\Domain\MedicationRepository;
 use Profile\Domain\ProfileRepository;
-use Schedule\Domain\Schedule;
-use Schedule\Domain\DailySchedule;
-use Schedule\Domain\DailyIntervalSchedule;
-use Schedule\Domain\SpecificDaysSchedule;
-use Schedule\Domain\ValueObject\TimeOfDay;
+use Schedule\Application\ScheduleView;
 use Schedule\Domain\ScheduleRepository;
 use Shared\Domain\Result;
 use Shared\Domain\Failure;
@@ -48,31 +44,7 @@ final class GetSchedulesHandler
 
         $schedules = $this->scheduleRepository->findByMedicationIds($medicationIds);
 
-        $data = array_map(function (Schedule $schedule) {
-            $base = [
-                'id' => $schedule->id()->value(),
-                'medicationId' => $schedule->medicationId()->value(),
-                'type' => $schedule->type(),
-                'startDate' => $schedule->startDate()->format(\DateTimeInterface::ATOM),
-                'endDate' => $schedule->endDate()?->format(\DateTimeInterface::ATOM),
-                'clientId' => $schedule->clientId(),
-                'createdAt' => $schedule->createdAt()->format(\DateTimeInterface::ATOM),
-                'updatedAt' => $schedule->updatedAt()->format(\DateTimeInterface::ATOM),
-            ];
-
-            if ($schedule instanceof DailySchedule) {
-                $base['timesOfDay'] = array_map(static fn (TimeOfDay $t) => ['hour' => $t->hour(), 'minute' => $t->minute()], $schedule->timesOfDay());
-            } elseif ($schedule instanceof DailyIntervalSchedule) {
-                $base['everyHours'] = $schedule->everyHours();
-                $base['startAt'] = ['hour' => $schedule->startAt()->hour(), 'minute' => $schedule->startAt()->minute()];
-                $base['endAt'] = $schedule->endAt() ? ['hour' => $schedule->endAt()->hour(), 'minute' => $schedule->endAt()->minute()] : null;
-            } elseif ($schedule instanceof SpecificDaysSchedule) {
-                $base['daysOfWeek'] = $schedule->daysOfWeek();
-                $base['timesOfDay'] = array_map(static fn (TimeOfDay $t) => ['hour' => $t->hour(), 'minute' => $t->minute()], $schedule->timesOfDay());
-            }
-
-            return $base;
-        }, $schedules);
+        $data = array_map(ScheduleView::toArray(...), $schedules);
 
         return Result::success($data);
     }

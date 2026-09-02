@@ -10,6 +10,8 @@ use Medication\Infrastructure\Persistence\MedicationDoctrineEntity;
 use Notification\Domain\DueDoseReminder;
 use Notification\Domain\DueDoseReminderRepository;
 use Profile\Infrastructure\Persistence\PatientProfileDoctrineEntity;
+use Schedule\Infrastructure\Persistence\ScheduleDoctrineEntity;
+use Shared\Domain\ValueObject\Dose;
 use Shared\Domain\ValueObject\DoseEventId;
 use Shared\Domain\ValueObject\UserId;
 
@@ -33,13 +35,15 @@ final class DoctrineDueDoseReminderRepository implements DueDoseReminderReposito
                 d.id AS dose_id,
                 d.scheduledAt AS scheduled_at,
                 m.name AS medication_name,
-                m.dosage AS dosage,
+                s.doseAmount AS schedule_dose_amount,
+                s.doseUnit AS schedule_dose_unit,
                 p.accountId AS account_id,
                 np.doseRemindersEnabled AS dose_reminders_enabled,
                 np.inAppBannersEnabled AS in_app_banners_enabled,
                 np.reminderMinutesBefore AS reminder_minutes_before
             FROM ' . DoseEventDoctrineEntity::class . ' d
             JOIN ' . MedicationDoctrineEntity::class . ' m ON d.medicationId = m.id
+            JOIN ' . ScheduleDoctrineEntity::class . ' s ON d.scheduleId = s.id
             JOIN ' . PatientProfileDoctrineEntity::class . ' p ON m.profileId = p.id
             LEFT JOIN ' . NotificationPreferencesDoctrineEntity::class . ' np ON p.accountId = np.accountId
             WHERE d.status = :pendingStatus
@@ -56,7 +60,8 @@ final class DoctrineDueDoseReminderRepository implements DueDoseReminderReposito
          *     dose_id: string,
          *     scheduled_at: \DateTimeImmutable,
          *     medication_name: string,
-         *     dosage: string,
+         *     schedule_dose_amount: ?string,
+         *     schedule_dose_unit: ?string,
          *     account_id: string,
          *     dose_reminders_enabled: ?bool,
          *     in_app_banners_enabled: ?bool,
@@ -76,7 +81,7 @@ final class DoctrineDueDoseReminderRepository implements DueDoseReminderReposito
                     new DoseEventId($row['dose_id']),
                     new UserId($row['account_id']),
                     $row['medication_name'],
-                    $row['dosage'],
+                    Dose::tryFromStorage($row['schedule_dose_amount'], $row['schedule_dose_unit']),
                     $row['scheduled_at'],
                     $minutesBefore,
                     $row['dose_reminders_enabled'] ?? true,

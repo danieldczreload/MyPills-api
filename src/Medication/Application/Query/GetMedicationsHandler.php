@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Medication\Application\Query;
 
+use Medication\Application\MedicationView;
 use Medication\Domain\MedicationRepository;
 use Profile\Domain\ProfileRepository;
 use Shared\Domain\Result;
@@ -21,7 +22,7 @@ final class GetMedicationsHandler
     }
 
     /**
-     * @return Result<array<array{id: string, profileId: string, name: string, dosage: string, instructions: ?string, photoUrl: ?string, clientId: ?string, form: string, colorToken: string, createdAt: string, updatedAt: string}>>
+     * @return Result<array<array{id: string, profileId: string, name: string, instructions: ?string, photoUrl: ?string, clientId: ?string, form: string, colorToken: string, createdAt: string, updatedAt: string}>>
      */
     public function __invoke(GetMedicationsQuery $query): Result
     {
@@ -38,21 +39,7 @@ final class GetMedicationsHandler
 
         $medications = $this->medicationRepository->findByProfileId($profileId);
 
-        $data = array_map(static function ($medication) {
-            return [
-                'id' => $medication->id()->value(),
-                'profileId' => $medication->profileId()->value(),
-                'name' => $medication->name(),
-                'dosage' => $medication->dosage(),
-                'instructions' => $medication->instructions(),
-                'photoUrl' => $medication->photoUrl(),
-                'clientId' => $medication->clientId(),
-                'form' => $medication->form(),
-                'colorToken' => $medication->colorToken(),
-                'createdAt' => $medication->createdAt()->format(\DateTimeInterface::ATOM),
-                'updatedAt' => $medication->updatedAt()->format(\DateTimeInterface::ATOM),
-            ];
-        }, $medications);
+        $data = array_map(MedicationView::toArray(...), $medications);
 
         return Result::success($data);
     }

@@ -44,7 +44,7 @@ final class CancelRecurringNotificationsHandlerTest extends TestCase
 
         $profile = PatientProfile::create($profileId, $accountId, 'Test', new \DateTimeImmutable('1990-01-01'), 'male');
 
-        $medication = Medication::create($medicationId, $profileId, 'Amoxicillin', '500mg', 'After meals');
+        $medication = Medication::create($medicationId, $profileId, 'Amoxicillin', 'After meals');
         $now = new \DateTimeImmutable();
         $schedule = new DailySchedule($scheduleId, $medicationId, [new TimeOfDay(8, 0)], $now, null, null, $now, $now);
 
@@ -208,7 +208,7 @@ final class CancelRecurringNotificationsHandlerTest extends TestCase
         $sched = new DailySchedule(new ScheduleId('sch-1'), new MedicationId('med-1'), [new TimeOfDay(8, 0)], new \DateTimeImmutable(), null, null, new \DateTimeImmutable(), new \DateTimeImmutable());
         $schedRepo = $this->createMock(ScheduleRepository::class);
         $schedRepo->method('findById')->willReturn($sched);
-        $otherMed = Medication::create(new MedicationId('med-1'), new ProfileId('prof-other'), 'Med', '10mg', null);
+        $otherMed = Medication::create(new MedicationId('med-1'), new ProfileId('prof-other'), 'Med', null);
         $medicationRepo->method('findById')->willReturn($otherMed);
         $handler = new CancelRecurringNotificationsHandler($profileRepo, $medicationRepo, $schedRepo, $doseRepo, $deviceRepo, $pushGateway, $linkRepo, $mapRepo, $resolver, $tokenVault);
         $res = $handler($cmd);
@@ -241,7 +241,7 @@ final class CancelRecurringNotificationsHandlerTest extends TestCase
         self::assertSame('Medication not found in this profile.', $res->getFailure()->getMessage());
 
         // Cancel across whole profile (no scheduleId, no medicationId)
-        $med = Medication::create(new MedicationId('med-1'), new ProfileId('prof-1'), 'Med', '10mg', null);
+        $med = Medication::create(new MedicationId('med-1'), new ProfileId('prof-1'), 'Med', null);
         $medicationRepo = $this->createMock(MedicationRepository::class);
         $medicationRepo->method('findByProfileId')->willReturn([$med]);
         $schedRepo->method('findByMedicationIds')->willReturn([]);

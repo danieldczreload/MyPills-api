@@ -40,6 +40,12 @@ abstract class ScheduleDoctrineEntity
     #[ORM\Column(type: 'datetime_immutable')]
     protected \DateTimeImmutable $updatedAt;
 
+    #[ORM\Column(type: 'decimal', precision: 12, scale: 4, nullable: true)]
+    protected ?string $doseAmount;
+
+    #[ORM\Column(type: 'string', length: 16, nullable: true)]
+    protected ?string $doseUnit;
+
     public function __construct(
         string $id,
         string $medicationId,
@@ -47,7 +53,9 @@ abstract class ScheduleDoctrineEntity
         ?\DateTimeImmutable $endDate,
         ?string $clientId,
         \DateTimeImmutable $createdAt,
-        \DateTimeImmutable $updatedAt
+        \DateTimeImmutable $updatedAt,
+        ?string $doseAmount = null,
+        ?string $doseUnit = null
     ) {
         $this->id = $id;
         $this->medicationId = $medicationId;
@@ -56,6 +64,8 @@ abstract class ScheduleDoctrineEntity
         $this->clientId = $clientId;
         $this->createdAt = $createdAt;
         $this->updatedAt = $updatedAt;
+        $this->doseAmount = $doseAmount;
+        $this->doseUnit = $doseUnit;
     }
 
     public function getId(): string
@@ -96,5 +106,25 @@ abstract class ScheduleDoctrineEntity
     public function setUpdatedAt(\DateTimeImmutable $updatedAt): void
     {
         $this->updatedAt = $updatedAt;
+    }
+
+    public function getDoseAmount(): ?string
+    {
+        return $this->doseAmount;
+    }
+
+    public function setDoseAmount(?string $doseAmount): void
+    {
+        $this->doseAmount = $doseAmount;
+    }
+
+    public function getDoseUnit(): ?string
+    {
+        return $this->doseUnit;
+    }
+
+    public function setDoseUnit(?string $doseUnit): void
+    {
+        $this->doseUnit = $doseUnit;
     }
 }

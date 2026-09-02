@@ -149,7 +149,9 @@ The backend sends a **High-Priority Data Message** (with optional notification b
       "type": "dose_reminder",
       "doseEventId": "01912a7e-1234-7000-8000-000000000001",
       "medicationName": "Amoxicilina",
-      "dosage": "500mg",
+      "doseDisplay": "500 mg",
+      "doseAmount": "500",
+      "doseUnit": "mg",
       "scheduledAt": "2026-08-17T14:00:00Z",
       "anticipationMinutes": "0"
     }

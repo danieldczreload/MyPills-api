@@ -18,6 +18,8 @@ final class CreateScheduleCommand
         public readonly string $medicationId,
         public readonly string $type,
         public readonly \DateTimeImmutable $startDate,
+        public readonly string $doseAmount,
+        public readonly string $doseUnit,
         public readonly ?\DateTimeImmutable $endDate = null,
         public readonly ?array $timesOfDay = null,
         public readonly ?int $everyHours = null,

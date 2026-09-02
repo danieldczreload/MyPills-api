@@ -49,7 +49,14 @@ final class GetDoseEventsHandler
 
         $events = $this->doseEventRepository->findByScheduleIdsAndRange($scheduleIds, $query->from, $query->to);
 
-        $data = array_map(static function (DoseEvent $event) {
+        $scheduleById = [];
+        foreach ($schedules as $schedule) {
+            $scheduleById[$schedule->id()->value()] = $schedule;
+        }
+
+        $data = array_map(static function (DoseEvent $event) use ($scheduleById) {
+            $schedule = $scheduleById[$event->scheduleId()->value()] ?? null;
+
             return [
                 'id' => $event->id()->value(),
                 'medicationId' => $event->medicationId()->value(),
@@ -57,6 +64,7 @@ final class GetDoseEventsHandler
                 'scheduledAt' => $event->scheduledAt()->format(\DateTimeInterface::ATOM),
                 'status' => $event->status(),
                 'takenAt' => $event->takenAt()?->format(\DateTimeInterface::ATOM),
+                'dose' => $schedule?->dose()?->toApiArray(),
                 'clientId' => $event->clientId(),
                 'createdAt' => $event->createdAt()->format(\DateTimeInterface::ATOM),
                 'updatedAt' => $event->updatedAt()->format(\DateTimeInterface::ATOM),

@@ -48,7 +48,7 @@ final class GetSchedulesHandlerTest extends TestCase
         $this->profileRepo->method('findById')->willReturn($profile);
 
         $medId = new MedicationId('med-1');
-        $medication = new Medication($medId, new ProfileId('prof-1'), 'Name', '10mg', 'pill', 'instr', null, new \DateTimeImmutable(), new \DateTimeImmutable());
+        $medication = new Medication($medId, new ProfileId('prof-1'), 'Name', 'pill', 'instr', null, new \DateTimeImmutable(), new \DateTimeImmutable());
         $this->medicationRepo->method('findByProfileId')->willReturn([$medication]);
 
         $daily = new DailySchedule(new ScheduleId('s-1'), $medId, [new TimeOfDay(8, 0)], new \DateTimeImmutable(), null, null, new \DateTimeImmutable(), new \DateTimeImmutable());
@@ -65,6 +65,7 @@ final class GetSchedulesHandlerTest extends TestCase
         $data = $result->getValue();
         self::assertCount(3, $data);
         self::assertSame('daily', $data[0]['type']);
+        self::assertNull($data[0]['dose']);
         self::assertSame('daily_interval', $data[1]['type']);
         self::assertSame('specific_days', $data[2]['type']);
     }

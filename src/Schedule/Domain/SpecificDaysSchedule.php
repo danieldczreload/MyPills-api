@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Schedule\Domain;
 
 use Schedule\Domain\ValueObject\TimeOfDay;
+use Shared\Domain\ValueObject\Dose;
 use Shared\Domain\ValueObject\MedicationId;
 use Shared\Domain\ValueObject\ScheduleId;
 
@@ -23,9 +24,10 @@ final class SpecificDaysSchedule extends Schedule
         ?\DateTimeImmutable $endDate,
         ?string $clientId,
         \DateTimeImmutable $createdAt,
-        \DateTimeImmutable $updatedAt
+        \DateTimeImmutable $updatedAt,
+        ?Dose $dose = null
     ) {
-        parent::__construct($id, $medicationId, $startDate, $endDate, $clientId, $createdAt, $updatedAt);
+        parent::__construct($id, $medicationId, $startDate, $endDate, $clientId, $createdAt, $updatedAt, $dose);
         foreach ($this->daysOfWeek as $day) {
             if ($day < 1 || $day > 7) {
                 throw new \InvalidArgumentException('Day of week must be between 1 and 7.');

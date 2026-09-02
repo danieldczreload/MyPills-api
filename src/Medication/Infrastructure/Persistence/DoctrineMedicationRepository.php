@@ -26,7 +26,6 @@ final class DoctrineMedicationRepository implements MedicationRepository
                 $medication->id()->value(),
                 $medication->profileId()->value(),
                 $medication->name(),
-                $medication->dosage(),
                 $medication->instructions(),
                 $medication->photoUrl(),
                 $medication->clientId(),
@@ -38,7 +37,6 @@ final class DoctrineMedicationRepository implements MedicationRepository
             $this->entityManager->persist($entity);
         } else {
             $entity->setName($medication->name());
-            $entity->setDosage($medication->dosage());
             $entity->setInstructions($medication->instructions());
             $entity->setPhotoUrl($medication->photoUrl());
             $entity->setForm($medication->form());
@@ -97,7 +95,6 @@ final class DoctrineMedicationRepository implements MedicationRepository
             new MedicationId($entity->getId()),
             new ProfileId($entity->getProfileId()),
             $entity->getName(),
-            $entity->getDosage(),
             $entity->getInstructions(),
             $entity->getPhotoUrl(),
             $entity->getClientId(),

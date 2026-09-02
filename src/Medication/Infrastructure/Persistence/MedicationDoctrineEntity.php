@@ -21,9 +21,6 @@ class MedicationDoctrineEntity
     #[ORM\Column(type: 'string', length: 255)]
     private string $name;
 
-    #[ORM\Column(type: 'string', length: 255)]
-    private string $dosage;
-
     #[ORM\Column(type: 'text', nullable: true)]
     private ?string $instructions;
 
@@ -49,7 +46,6 @@ class MedicationDoctrineEntity
         string $id,
         string $profileId,
         string $name,
-        string $dosage,
         ?string $instructions,
         ?string $photoUrl,
         ?string $clientId,
@@ -61,7 +57,6 @@ class MedicationDoctrineEntity
         $this->id = $id;
         $this->profileId = $profileId;
         $this->name = $name;
-        $this->dosage = $dosage;
         $this->instructions = $instructions;
         $this->photoUrl = $photoUrl;
         $this->clientId = $clientId;
@@ -89,16 +84,6 @@ class MedicationDoctrineEntity
     public function setName(string $name): void
     {
         $this->name = $name;
-    }
-
-    public function getDosage(): string
-    {
-        return $this->dosage;
-    }
-
-    public function setDosage(string $dosage): void
-    {
-        $this->dosage = $dosage;
     }
 
     public function getInstructions(): ?string

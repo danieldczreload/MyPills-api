@@ -60,7 +60,7 @@ final class DeleteScheduleHandlerTest extends TestCase
         $profile = new PatientProfile(new ProfileId('prof-1'), new UserId('acc-1'), 'Name', new \DateTimeImmutable('1990-01-01'), 'male', null, new \DateTimeImmutable(), new \DateTimeImmutable());
         $this->profileRepo->method('findById')->willReturn($profile);
 
-        $medication = new Medication(new MedicationId('med-1'), new ProfileId('prof-1'), 'Name', '10mg', 'pill', 'instr', null, new \DateTimeImmutable(), new \DateTimeImmutable());
+        $medication = new Medication(new MedicationId('med-1'), new ProfileId('prof-1'), 'Name', 'pill', 'instr', null, new \DateTimeImmutable(), new \DateTimeImmutable());
         $this->medicationRepo->method('findById')->willReturn($medication);
 
         $schedule = new DailySchedule(new ScheduleId('sched-1'), new MedicationId('med-1'), [new TimeOfDay(8, 0)], new \DateTimeImmutable(), null, null, new \DateTimeImmutable(), new \DateTimeImmutable());
