@@ -84,7 +84,8 @@ final class MicrosoftCalendarGateway implements CalendarProvider
         $isCreate = $externalEventId === null;
         $collectionUrl = 'https://graph.microsoft.com/v1.0/me/events';
         $url = $isCreate ? $collectionUrl : $collectionUrl . '/' . rawurlencode($externalEventId);
-        $zone = new \DateTimeZone($timeZone);
+        // Graph dateTimeTimeZone.timeZone is a Windows-ID allowlist; America/El_Salvador is not on it.
+        $utc = new \DateTimeZone('UTC');
         $event = [
             'subject' => $title,
             'body' => [
@@ -92,12 +93,12 @@ final class MicrosoftCalendarGateway implements CalendarProvider
                 'content' => $description,
             ],
             'start' => [
-                'dateTime' => $start->setTimezone($zone)->format('Y-m-d\TH:i:s'),
-                'timeZone' => $timeZone,
+                'dateTime' => $start->setTimezone($utc)->format('Y-m-d\TH:i:s'),
+                'timeZone' => 'UTC',
             ],
             'end' => [
-                'dateTime' => $end->setTimezone($zone)->format('Y-m-d\TH:i:s'),
-                'timeZone' => $timeZone,
+                'dateTime' => $end->setTimezone($utc)->format('Y-m-d\TH:i:s'),
+                'timeZone' => 'UTC',
             ],
         ];
 

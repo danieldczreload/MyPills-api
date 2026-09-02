@@ -14,6 +14,7 @@ use CalendarIntegration\Domain\CalendarLinkStatus;
 use DoseEvent\Domain\DoseEventRepository;
 use Medication\Domain\MedicationRepository;
 use Profile\Domain\ProfileRepository;
+use Profile\Domain\ValueObject\Timezone;
 use Schedule\Domain\ScheduleRepository;
 use Shared\Domain\Result;
 use Shared\Domain\Failure;
@@ -201,21 +202,21 @@ final class SyncCalendarHandler
             }
 
             $title = sprintf('Take Medication: %s (%s)', $med->name(), $med->dosage());
-            $scheduledAt = $event->scheduledAt()->setTimezone(new \DateTimeZone($timeZone));
-            $description = sprintf(
-                "Instructions: %s\nStatus: %s\nScheduled At: %s",
-                $med->instructions() ?? 'None',
-                ucfirst($event->status()),
-                $scheduledAt->format(\DateTimeInterface::ATOM)
-            );
-
-            $start = $scheduledAt;
-            $end = $start->modify('+30 minutes');
-
             $mappingKey = $event->id()->value() . ':' . $link->provider();
             $mapping = $mappings[$mappingKey] ?? null;
 
             try {
+                $zone = Timezone::dateTimeZoneOrUtc($timeZone);
+                $scheduledAt = $event->scheduledAt()->setTimezone($zone);
+                $description = sprintf(
+                    "Instructions: %s\nStatus: %s\nScheduled At: %s",
+                    $med->instructions() ?? 'None',
+                    ucfirst($event->status()),
+                    $scheduledAt->format(\DateTimeInterface::ATOM)
+                );
+
+                $start = $scheduledAt;
+                $end = $start->modify('+30 minutes');
                 $externalEventId = $gateway->upsertEvent(
                     $tokens->accessToken(),
                     $title,
@@ -224,7 +225,7 @@ final class SyncCalendarHandler
                     $description,
                     $mapping?->externalEventId(),
                     self::idempotencyKey($event->id()->value(), $link->provider()),
-                    $timeZone
+                    $zone->getName()
                 );
             } catch (\Throwable $exception) {
                 return [

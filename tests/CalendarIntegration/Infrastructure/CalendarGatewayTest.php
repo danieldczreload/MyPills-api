@@ -196,7 +196,7 @@ final class CalendarGatewayTest extends TestCase
         self::assertSame('stable-event-key', $payload['transactionId']);
     }
 
-    public function testMicrosoftCreatesAnEventWithIanaTimeZone(): void
+    public function testMicrosoftWritesUtcEvenWhenIanaTimeZoneIsPassed(): void
     {
         $requests = [];
         $responses = [
@@ -229,10 +229,10 @@ final class CalendarGatewayTest extends TestCase
          *     end: array{dateTime: string, timeZone: string}
          * } $payload */
         $payload = json_decode($requests[0][2]['body'], true, 512, JSON_THROW_ON_ERROR);
-        self::assertSame('2026-08-29T16:25:00', $payload['start']['dateTime']);
-        self::assertSame('America/El_Salvador', $payload['start']['timeZone']);
-        self::assertSame('2026-08-29T16:55:00', $payload['end']['dateTime']);
-        self::assertSame('America/El_Salvador', $payload['end']['timeZone']);
+        self::assertSame('2026-08-29T22:25:00', $payload['start']['dateTime']);
+        self::assertSame('UTC', $payload['start']['timeZone']);
+        self::assertSame('2026-08-29T22:55:00', $payload['end']['dateTime']);
+        self::assertSame('UTC', $payload['end']['timeZone']);
     }
 
     public function testGoogleExchangeServerAuthCodeThrowsWhenNotConfigured(): void
