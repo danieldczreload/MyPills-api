@@ -98,6 +98,8 @@ final class CancelRecurringNotificationsHandler
 
         $pushCancelled = false;
         if ($command->cancelPush) {
+            $this->retainDosesWithLeftoverMappings($pendingDoseEvents, $pendingDoseEventIds);
+
             if ($scheduleIds !== []) {
                 $this->doseEventRepository->deletePendingByScheduleIds($scheduleIds);
             }
@@ -143,5 +145,31 @@ final class CancelRecurringNotificationsHandler
             'calendarEventsDeleted' => $calendarEventsDeleted,
             'pushCancelled' => $pushCancelled,
         ]);
+    }
+
+    /**
+     * @param DoseEvent[] $pendingDoseEvents
+     * @param string[] $pendingDoseEventIds
+     */
+    private function retainDosesWithLeftoverMappings(array $pendingDoseEvents, array $pendingDoseEventIds): void
+    {
+        if ($pendingDoseEventIds === []) {
+            return;
+        }
+
+        $keptDoseEventIds = [];
+        foreach ($this->mappingRepository->findByDoseEventIds($pendingDoseEventIds) as $mapping) {
+            $keptDoseEventIds[$mapping->doseEventId()] = true;
+        }
+
+        foreach ($pendingDoseEvents as $doseEvent) {
+            if (!isset($keptDoseEventIds[$doseEvent->id()->value()])) {
+                continue;
+            }
+
+            // Leftover mappings join live dose_events; skipped rows stay findable.
+            $doseEvent->markAs('skipped');
+            $this->doseEventRepository->save($doseEvent);
+        }
     }
 }

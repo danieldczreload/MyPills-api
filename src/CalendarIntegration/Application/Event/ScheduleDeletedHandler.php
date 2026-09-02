@@ -13,7 +13,7 @@ use Shared\Domain\ValueObject\ProfileId;
 use Shared\Domain\ValueObject\ScheduleId;
 use Symfony\Component\Messenger\Attribute\AsMessageHandler;
 
-#[AsMessageHandler]
+#[AsMessageHandler(priority: 10)]
 final class ScheduleDeletedHandler
 {
     public function __construct(
@@ -41,5 +41,22 @@ final class ScheduleDeletedHandler
         }
 
         $this->calendarEventRemover->remove($profileId, $mappings);
+
+        /** @var array<string, DoseEvent> $doseEventsById */
+        $doseEventsById = [];
+        foreach ($doseEvents as $doseEvent) {
+            $doseEventsById[$doseEvent->id()->value()] = $doseEvent;
+        }
+
+        foreach ($this->mappingRepository->findByDoseEventIds($doseEventIds) as $mapping) {
+            $doseEvent = $doseEventsById[$mapping->doseEventId()] ?? null;
+            if ($doseEvent === null || $doseEvent->status() !== 'pending') {
+                continue;
+            }
+
+            // Keep the row so leftover mappings stay locatable via the dose_events join.
+            $doseEvent->markAs('skipped');
+            $this->doseEventRepository->save($doseEvent);
+        }
     }
 }
