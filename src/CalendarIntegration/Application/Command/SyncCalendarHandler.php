@@ -111,6 +111,7 @@ final class SyncCalendarHandler
                     $link,
                     $doseEvents,
                     $medicationMap,
+                    $profile->timezone(),
                     $eventsCreated,
                     $eventsUpdated
                 );
@@ -151,7 +152,7 @@ final class SyncCalendarHandler
      *
      * @return array{provider: string, reason: string, detail?: string}|null Per-link failure detail, null on success.
      */
-    private function syncLink(CalendarLink $link, array $doseEvents, array $medicationMap, int &$eventsCreated, int &$eventsUpdated): ?array
+    private function syncLink(CalendarLink $link, array $doseEvents, array $medicationMap, string $timeZone, int &$eventsCreated, int &$eventsUpdated): ?array
     {
         try {
             $gateway = $this->providerResolver->resolveString($link->provider());
@@ -200,14 +201,15 @@ final class SyncCalendarHandler
             }
 
             $title = sprintf('Take Medication: %s (%s)', $med->name(), $med->dosage());
+            $scheduledAt = $event->scheduledAt()->setTimezone(new \DateTimeZone($timeZone));
             $description = sprintf(
                 "Instructions: %s\nStatus: %s\nScheduled At: %s",
                 $med->instructions() ?? 'None',
                 ucfirst($event->status()),
-                $event->scheduledAt()->format(\DateTimeInterface::ATOM)
+                $scheduledAt->format(\DateTimeInterface::ATOM)
             );
 
-            $start = $event->scheduledAt();
+            $start = $scheduledAt;
             $end = $start->modify('+30 minutes');
 
             $mappingKey = $event->id()->value() . ':' . $link->provider();
@@ -221,7 +223,8 @@ final class SyncCalendarHandler
                     $end,
                     $description,
                     $mapping?->externalEventId(),
-                    self::idempotencyKey($event->id()->value(), $link->provider())
+                    self::idempotencyKey($event->id()->value(), $link->provider()),
+                    $timeZone
                 );
             } catch (\Throwable $exception) {
                 return [

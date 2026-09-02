@@ -37,7 +37,8 @@ final class LoggerMicrosoftCalendarGateway implements CalendarProvider
         \DateTimeImmutable $end,
         string $description,
         ?string $externalEventId = null,
-        ?string $idempotencyKey = null
+        ?string $idempotencyKey = null,
+        string $timeZone = 'UTC'
     ): string {
         $eventId = $externalEventId ?? 'microsoft_mock_' . bin2hex(random_bytes(8));
         $this->logger->info('Microsoft Calendar event upserted in test gateway.', ['eventId' => $eventId]);

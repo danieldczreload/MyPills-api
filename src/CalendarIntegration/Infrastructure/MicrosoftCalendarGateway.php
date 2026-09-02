@@ -78,11 +78,13 @@ final class MicrosoftCalendarGateway implements CalendarProvider
         \DateTimeImmutable $end,
         string $description,
         ?string $externalEventId = null,
-        ?string $idempotencyKey = null
+        ?string $idempotencyKey = null,
+        string $timeZone = 'UTC'
     ): string {
         $isCreate = $externalEventId === null;
         $collectionUrl = 'https://graph.microsoft.com/v1.0/me/events';
         $url = $isCreate ? $collectionUrl : $collectionUrl . '/' . rawurlencode($externalEventId);
+        $zone = new \DateTimeZone($timeZone);
         $event = [
             'subject' => $title,
             'body' => [
@@ -90,12 +92,12 @@ final class MicrosoftCalendarGateway implements CalendarProvider
                 'content' => $description,
             ],
             'start' => [
-                'dateTime' => $start->setTimezone(new \DateTimeZone('UTC'))->format('Y-m-d\TH:i:s'),
-                'timeZone' => 'UTC',
+                'dateTime' => $start->setTimezone($zone)->format('Y-m-d\TH:i:s'),
+                'timeZone' => $timeZone,
             ],
             'end' => [
-                'dateTime' => $end->setTimezone(new \DateTimeZone('UTC'))->format('Y-m-d\TH:i:s'),
-                'timeZone' => 'UTC',
+                'dateTime' => $end->setTimezone($zone)->format('Y-m-d\TH:i:s'),
+                'timeZone' => $timeZone,
             ],
         ];
 
@@ -116,7 +118,7 @@ final class MicrosoftCalendarGateway implements CalendarProvider
         );
 
         if ($response->getStatusCode() === 404 && $externalEventId !== null) {
-            return $this->upsertEvent($accessToken, $title, $start, $end, $description, null, $idempotencyKey);
+            return $this->upsertEvent($accessToken, $title, $start, $end, $description, null, $idempotencyKey, $timeZone);
         }
 
         if ($response->getStatusCode() < 200 || $response->getStatusCode() >= 300) {

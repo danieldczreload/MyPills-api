@@ -136,19 +136,23 @@ final class GoogleCalendarGateway implements CalendarProvider, ServerAuthCodeExc
         \DateTimeImmutable $end,
         string $description,
         ?string $externalEventId = null,
-        ?string $idempotencyKey = null
+        ?string $idempotencyKey = null,
+        string $timeZone = 'UTC'
     ): string {
         $isCreate = $externalEventId === null;
         $collectionUrl = 'https://www.googleapis.com/calendar/v3/calendars/primary/events';
         $url = $isCreate ? $collectionUrl : $collectionUrl . '/' . rawurlencode($externalEventId);
+        $zone = new \DateTimeZone($timeZone);
         $event = [
             'summary' => $title,
             'description' => $description,
             'start' => [
-                'dateTime' => $start->format(\DateTimeInterface::ATOM),
+                'dateTime' => $start->setTimezone($zone)->format(\DateTimeInterface::ATOM),
+                'timeZone' => $timeZone,
             ],
             'end' => [
-                'dateTime' => $end->format(\DateTimeInterface::ATOM),
+                'dateTime' => $end->setTimezone($zone)->format(\DateTimeInterface::ATOM),
+                'timeZone' => $timeZone,
             ],
         ];
 
@@ -169,7 +173,7 @@ final class GoogleCalendarGateway implements CalendarProvider, ServerAuthCodeExc
         );
 
         if ($response->getStatusCode() === 404 && $externalEventId !== null) {
-            return $this->upsertEvent($accessToken, $title, $start, $end, $description, null, $idempotencyKey);
+            return $this->upsertEvent($accessToken, $title, $start, $end, $description, null, $idempotencyKey, $timeZone);
         }
 
         if ($response->getStatusCode() === 409 && $isCreate && $idempotencyKey !== null) {

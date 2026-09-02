@@ -102,7 +102,7 @@ final class CompleteAuthExtraTest extends TestCase
             {
                 return new CalendarOAuthTokens('tok', 'ref');
             }
-            public function upsertEvent(string $accessToken, string $title, \DateTimeImmutable $start, \DateTimeImmutable $end, string $description, ?string $externalEventId = null, ?string $idempotencyKey = null): string
+            public function upsertEvent(string $accessToken, string $title, \DateTimeImmutable $start, \DateTimeImmutable $end, string $description, ?string $externalEventId = null, ?string $idempotencyKey = null, string $timeZone = 'UTC'): string
             {
                 return 'id';
             }
