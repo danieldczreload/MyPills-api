@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\CalendarIntegration\Application;
 
+use CalendarIntegration\Application\CalendarEventRemover;
 use CalendarIntegration\Application\CalendarProviderResolver;
 use CalendarIntegration\Application\Command\CompleteCalendarAuthorizationCommand;
 use CalendarIntegration\Application\Command\CompleteCalendarAuthorizationHandler;
@@ -130,7 +131,8 @@ final class CalendarHandlersTest extends TestCase
         $resolver = new CalendarProviderResolver($google, $microsoft);
         $vault = $this->createMock(TokenVault::class);
 
-        $handler = new DisconnectCalendarHandler($linkRepo, $profileRepo, $mapRepo, $resolver, $vault);
+        $remover = new CalendarEventRemover($linkRepo, $mapRepo, $resolver, $vault);
+        $handler = new DisconnectCalendarHandler($linkRepo, $profileRepo, $mapRepo, $remover);
 
         // Not found
         $profileRepo->method('findById')->willReturn(null);
@@ -147,7 +149,7 @@ final class CalendarHandlersTest extends TestCase
         $mapRepo->method('findByProfileAndProvider')->willReturn([]);
         $linkRepo->expects(self::once())->method('delete')->with($link);
 
-        $handler = new DisconnectCalendarHandler($linkRepo, $profileRepo, $mapRepo, $resolver, $vault);
+        $handler = new DisconnectCalendarHandler($linkRepo, $profileRepo, $mapRepo, new CalendarEventRemover($linkRepo, $mapRepo, $resolver, $vault));
         $res = $handler(new DisconnectCalendarCommand('prof-1', 'acc-1', 'google'));
         self::assertTrue($res->isSuccess());
     }

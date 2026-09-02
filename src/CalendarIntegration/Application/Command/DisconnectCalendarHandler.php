@@ -4,14 +4,13 @@ declare(strict_types=1);
 
 namespace CalendarIntegration\Application\Command;
 
-use CalendarIntegration\Application\CalendarProviderResolver;
+use CalendarIntegration\Application\CalendarEventRemover;
 use CalendarIntegration\Domain\CalendarEventMappingRepository;
 use CalendarIntegration\Domain\CalendarLinkRepository;
 use CalendarIntegration\Domain\CalendarProviderName;
 use Profile\Domain\ProfileRepository;
 use Shared\Domain\Failure;
 use Shared\Domain\Result;
-use Shared\Domain\TokenVault;
 use Shared\Domain\ValueObject\ProfileId;
 use Symfony\Component\Messenger\Attribute\AsMessageHandler;
 
@@ -22,8 +21,7 @@ final class DisconnectCalendarHandler
         private readonly CalendarLinkRepository $calendarLinkRepository,
         private readonly ProfileRepository $profileRepository,
         private readonly CalendarEventMappingRepository $mappingRepository,
-        private readonly CalendarProviderResolver $providerResolver,
-        private readonly TokenVault $tokenVault
+        private readonly CalendarEventRemover $calendarEventRemover
     ) {
     }
 
@@ -55,12 +53,9 @@ final class DisconnectCalendarHandler
 
         $mappings = $this->mappingRepository->findByProfileAndProvider($profileId, $command->provider);
         if ($mappings !== []) {
-            try {
-                $gateway = $this->providerResolver->resolveString($command->provider);
-                $accessToken = $gateway->refreshAccessToken(
-                    $this->tokenVault->decrypt($link->encryptedRefreshToken())
-                )->accessToken();
-            } catch (\Throwable) {
+            $result = $this->calendarEventRemover->removeForProvider($profileId, $command->provider, $mappings);
+
+            if ($result->refreshFailed) {
                 $link->markReauthorizationRequired();
                 $this->calendarLinkRepository->save($link);
 
@@ -70,21 +65,11 @@ final class DisconnectCalendarHandler
                 ));
             }
 
-            $failed = 0;
-            foreach ($mappings as $mapping) {
-                try {
-                    $gateway->deleteEvent($accessToken, $mapping->externalEventId());
-                    $this->mappingRepository->delete($mapping);
-                } catch (\Throwable) {
-                    ++$failed;
-                }
-            }
-
-            if ($failed > 0) {
+            if ($result->failed > 0) {
                 return Result::failure(Failure::custom(
                     'CALENDAR_DISCONNECT_FAILED',
                     'Some calendar events could not be removed. Try again later.',
-                    ['failed' => $failed]
+                    ['failed' => $result->failed]
                 ));
             }
         }

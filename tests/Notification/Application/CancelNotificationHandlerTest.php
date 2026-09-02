@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Notification\Application;
 
+use CalendarIntegration\Application\CalendarEventRemover;
 use CalendarIntegration\Application\CalendarProviderResolver;
 use CalendarIntegration\Domain\CalendarEventMapping;
 use CalendarIntegration\Domain\CalendarEventMappingRepository;
@@ -47,7 +48,6 @@ final class CancelNotificationHandlerTest extends TestCase
             new \DateTimeImmutable('1990-01-01'),
             'female'
         );
-
 
         $medication = Medication::create(
             $medicationId,
@@ -120,10 +120,8 @@ final class CancelNotificationHandlerTest extends TestCase
             $doseRepo,
             $deviceRepo,
             $pushGateway,
-            $linkRepo,
             $mapRepo,
-            $resolver,
-            $tokenVault
+            new CalendarEventRemover($linkRepo, $mapRepo, $resolver, $tokenVault)
         );
 
         $command = new CancelNotificationCommand(
@@ -145,10 +143,74 @@ final class CancelNotificationHandlerTest extends TestCase
         self::assertSame(1, $data['calendarEventsDeleted']);
     }
 
+    public function testKeepsMappingWhenRemoteCalendarDeleteFails(): void
+    {
+        $profileId = new ProfileId('00000000-0000-0000-0000-000000000001');
+        $accountId = new UserId('00000000-0000-0000-0000-000000000002');
+        $medicationId = new MedicationId('00000000-0000-0000-0000-000000000003');
+        $scheduleId = new ScheduleId('00000000-0000-0000-0000-000000000004');
+        $doseEventId = new DoseEventId('00000000-0000-0000-0000-000000000005');
+
+        $profile = PatientProfile::create($profileId, $accountId, 'Test Patient', new \DateTimeImmutable('1990-01-01'), 'female');
+        $medication = Medication::create($medicationId, $profileId, 'Paracetamol', '500mg', 'With water');
+        $doseEvent = DoseEvent::create($doseEventId, $medicationId, $scheduleId, new \DateTimeImmutable('+2 hours'));
+
+        $profileRepo = $this->createMock(ProfileRepository::class);
+        $profileRepo->method('findById')->willReturn($profile);
+        $medicationRepo = $this->createMock(MedicationRepository::class);
+        $medicationRepo->method('findById')->willReturn($medication);
+        $doseRepo = $this->createMock(DoseEventRepository::class);
+        $doseRepo->method('findById')->willReturn($doseEvent);
+
+        $link = CalendarLink::create($profileId, 'google', 'enc-refresh-token');
+        $linkRepo = $this->createMock(CalendarLinkRepository::class);
+        $linkRepo->method('findByProfileAndProvider')->willReturn($link);
+
+        $mapping = CalendarEventMapping::create($doseEventId->value(), 'google', 'ext-event-123');
+        $mapRepo = $this->createMock(CalendarEventMappingRepository::class);
+        $mapRepo->method('findByDoseEventId')->willReturn([$mapping]);
+        $mapRepo->expects(self::never())->method('delete');
+        $mapRepo->expects(self::once())->method('flush');
+
+        $google = $this->createMock(CalendarProvider::class);
+        $google->method('refreshAccessToken')->willReturn(new CalendarOAuthTokens('google-access-token', null));
+        $google->method('deleteEvent')->willThrowException(new \RuntimeException('Google Calendar API delete failed with status 500.'));
+
+        $tokenVault = $this->createMock(TokenVault::class);
+        $tokenVault->method('decrypt')->willReturn('dec-refresh-token');
+
+        $handler = new CancelNotificationHandler(
+            $profileRepo,
+            $medicationRepo,
+            $doseRepo,
+            $this->createMock(DeviceTokenRepository::class),
+            $this->createMock(PushNotificationGateway::class),
+            $mapRepo,
+            new CalendarEventRemover(
+                $linkRepo,
+                $mapRepo,
+                new CalendarProviderResolver($google, $this->createMock(CalendarProvider::class)),
+                $tokenVault
+            )
+        );
+
+        $result = $handler(new CancelNotificationCommand(
+            $profileId->value(),
+            $accountId->value(),
+            $doseEventId->value(),
+            cancelPush: false,
+            cancelCalendar: true
+        ));
+
+        self::assertTrue($result->isSuccess());
+        self::assertSame(0, $result->getValue()['calendarEventsDeleted']);
+    }
+
     public function testFailsWhenProfileNotFoundOrNotOwned(): void
     {
         $profileRepo = $this->createMock(ProfileRepository::class);
         $profileRepo->method('findById')->willReturn(null);
+        $mapRepo = $this->createMock(CalendarEventMappingRepository::class);
 
         $handler = new CancelNotificationHandler(
             $profileRepo,
@@ -156,10 +218,13 @@ final class CancelNotificationHandlerTest extends TestCase
             $this->createMock(DoseEventRepository::class),
             $this->createMock(DeviceTokenRepository::class),
             $this->createMock(PushNotificationGateway::class),
-            $this->createMock(CalendarLinkRepository::class),
-            $this->createMock(CalendarEventMappingRepository::class),
-            new CalendarProviderResolver($this->createMock(CalendarProvider::class), $this->createMock(CalendarProvider::class)),
-            $this->createMock(TokenVault::class)
+            $mapRepo,
+            new CalendarEventRemover(
+                $this->createMock(CalendarLinkRepository::class),
+                $mapRepo,
+                new CalendarProviderResolver($this->createMock(CalendarProvider::class), $this->createMock(CalendarProvider::class)),
+                $this->createMock(TokenVault::class)
+            )
         );
 
         $res = $handler(new CancelNotificationCommand('prof-1', 'acc-1', 'dose-1'));
@@ -178,6 +243,7 @@ final class CancelNotificationHandlerTest extends TestCase
 
         $doseRepo = $this->createMock(DoseEventRepository::class);
         $doseRepo->method('findById')->willReturn(null);
+        $mapRepo = $this->createMock(CalendarEventMappingRepository::class);
 
         $handler = new CancelNotificationHandler(
             $profileRepo,
@@ -185,10 +251,13 @@ final class CancelNotificationHandlerTest extends TestCase
             $doseRepo,
             $this->createMock(DeviceTokenRepository::class),
             $this->createMock(PushNotificationGateway::class),
-            $this->createMock(CalendarLinkRepository::class),
-            $this->createMock(CalendarEventMappingRepository::class),
-            new CalendarProviderResolver($this->createMock(CalendarProvider::class), $this->createMock(CalendarProvider::class)),
-            $this->createMock(TokenVault::class)
+            $mapRepo,
+            new CalendarEventRemover(
+                $this->createMock(CalendarLinkRepository::class),
+                $mapRepo,
+                new CalendarProviderResolver($this->createMock(CalendarProvider::class), $this->createMock(CalendarProvider::class)),
+                $this->createMock(TokenVault::class)
+            )
         );
 
         $res = $handler(new CancelNotificationCommand($profileId->value(), $accountId->value(), 'dose-1'));

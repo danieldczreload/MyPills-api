@@ -14,6 +14,7 @@
 - [Schedule — Horarios de toma](#schedule--horarios-de-toma)
 - [DoseEvent — Registro de tomas](#doseevent--registro-de-tomas)
 - [Notification — Dispositivos y preferencias](#notification--dispositivos-y-preferencias)
+- [Cancel — push y Calendar](#cancel--push-y-calendar)
 - [CalendarIntegration — Calendarios externos](#calendarintegration--calendarios-externos)
 
 ---
@@ -60,11 +61,12 @@
   "name": "string",
   "birthDate": "2000-01-15",
   "gender": "string",
-  "photoUrl": "https://..."
+  "photoUrl": "https://...",
+  "timezone": "America/El_Salvador"
 }
 ```
 
-> `photoUrl` es opcional. Si `since` se omite en el sync, devuelve todo desde epoch 0.
+> `photoUrl` es opcional. `timezone` es un identificador IANA; si se omite, el backend guarda `UTC`. Si `since` se omite en el sync, devuelve todo desde epoch 0.
 
 ---
 
@@ -117,7 +119,7 @@ Usa Doctrine STI sobre la tabla `schedules`, discriminador `type`.
 |--------|------|------|------|--------|-------------|
 | `GET`    | `/profiles/{id}/schedules` | ✅ | — | `200` | Lista schedules del perfil |
 | `POST`   | `/profiles/{id}/schedules` | ✅ | Ver abajo | `201` | Crea un schedule |
-| `DELETE` | `/profiles/{id}/schedules/{sid}` | ✅ | — | `204` | Elimina un schedule |
+| `DELETE` | `/profiles/{id}/schedules/{sid}` | ✅ | — | `204` | Elimina un schedule y dispara limpieza de eventos de Calendar de sus dosis |
 
 ### Body — `POST /schedules`
 
@@ -174,6 +176,7 @@ Los campos varían según `type`:
 |--------|------|------|------|--------|-------------|
 | `POST` | `/profiles/{id}/dose-events` | ✅ | Ver abajo | `201` | Registra una toma |
 | `GET`  | `/profiles/{id}/dose-events` | ✅ | `?from=<ISO>&to=<ISO>` | `200` | Lista eventos en un rango |
+| `POST` / `DELETE` | `/profiles/{id}/dose-events/{doseEventId}/cancel` | ✅ | Ver [Cancel](#cancel--push-y-calendar) | `200` | Alias de cancelar una toma (push + Calendar) |
 
 ### Body — `POST /dose-events`
 
@@ -200,8 +203,12 @@ Los campos varían según `type`:
 |--------|------|------|------|--------|-------------|
 | `POST`   | `/devices` | ✅ | Ver abajo | `201` | Registra un device token (FCM) |
 | `DELETE` | `/devices/{deviceId}` | ✅ | — | `204` | Elimina un device registration |
+| `GET`    | `/notifications/preferences` | ✅ | — | `200` | Lee preferencias push |
 | `PATCH`  | `/notifications/preferences` | ✅ | Ver abajo | `200` | Actualiza preferencias push |
 | `POST`   | `/notifications/test-push` | ✅ | `{ title, body, data? }` | `200` / `500` | Envía un push de prueba; devuelve `500` si alguna entrega falla |
+| `POST` / `DELETE` | `/profiles/{id}/notifications/{doseEventId}/cancel` | ✅ | Ver [Cancel](#cancel--push-y-calendar) | `200` | Cancela push y/o evento de Calendar de una toma |
+| `POST`   | `/profiles/{id}/notifications/cancel-recurring` | ✅ | Ver [Cancel](#cancel--push-y-calendar) | `200` | Cancela pendientes de schedule, medicamento o perfil |
+| `POST` / `DELETE` | `/profiles/{id}/schedules/{sid}/cancel-recurring` | ✅ | Ver [Cancel](#cancel--push-y-calendar) | `200` | Cancela pendientes de ese schedule |
 
 ### Body — `POST /devices`
 
@@ -227,6 +234,63 @@ The `201` response contains only the registration `id`, `platform`, and `locale`
 ```
 
 > Todos los campos de preferencias tienen `true` como valor por defecto.
+
+### Cancel — push y Calendar
+
+El cliente **no** guarda IDs de Google/Microsoft. El backend tiene `calendar_event_mappings` (`doseEventId` + `provider` + `externalEventId`) y borra el evento remoto al cancelar.
+
+| Método | Path | Qué cancela |
+|--------|------|-------------|
+| `POST` / `DELETE` | `/profiles/{id}/notifications/{doseEventId}/cancel` | Una toma: `pending` → `skipped`, borra push y evento de Calendar |
+| `POST` / `DELETE` | `/profiles/{id}/dose-events/{doseEventId}/cancel` | Igual (`CancelNotificationCommand`) |
+| `POST` | `/profiles/{id}/notifications/cancel-recurring` | Pendientes de `scheduleId`, `medicationId` o todo el perfil |
+| `POST` / `DELETE` | `/profiles/{id}/schedules/{sid}/cancel-recurring` | Pendientes de ese schedule |
+| `DELETE` | `/profiles/{id}/schedules/{sid}` | Borra el schedule; `ScheduleDeletedEvent` limpia eventos de Calendar |
+
+Body (JSON, opcional; omitir un flag lo deja en su default):
+
+```json
+{
+  "cancelPush": true,
+  "cancelCalendar": true,
+  "deleteSchedule": false,
+  "scheduleId": "uuid",
+  "medicationId": "uuid"
+}
+```
+
+- `cancelPush` y `cancelCalendar` default **true**.
+- `deleteSchedule` default **false**; solo aplica a cancel-recurring con `scheduleId` / `{sid}`.
+- `scheduleId` / `medicationId` solo en `POST …/notifications/cancel-recurring`. Si ambos se omiten, se cancelan los pendientes de todo el perfil.
+
+El mapping local se borra solo si el proveedor confirma el delete o responde **404** (el evento ya no existe). Un **5xx** conserva el mapping para reintentar.
+
+Respuesta `200` (cancel individual):
+
+```json
+{
+  "doseEventId": "uuid",
+  "status": "skipped",
+  "pushCancelled": true,
+  "calendarEventsDeleted": 1
+}
+```
+
+Respuesta `200` (cancel recurring):
+
+```json
+{
+  "profileId": "uuid",
+  "scheduleId": "uuid",
+  "medicationId": null,
+  "schedulesTargeted": 1,
+  "pendingDosesCancelled": 2,
+  "calendarEventsDeleted": 2,
+  "pushCancelled": true
+}
+```
+
+`calendarEventsDeleted` cuenta mappings cuyo delete remoto se confirmó (o 404). Si el remoto falla, el cancel HTTP sigue `200` y ese contador no incluye los fallidos.
 
 ---
 
@@ -265,8 +329,8 @@ Las credenciales deben existir únicamente en variables de entorno/secret manage
 | Profile | 5 |
 | Medication | 4 |
 | Schedule | 3 |
-| DoseEvent | 2 |
-| Notification | 3 |
+| DoseEvent | 3 |
+| Notification | 8 |
 | CalendarIntegration | 5 |
 | Health | 1 |
-| **Total** | **27** |
+| **Total** | **33** |
