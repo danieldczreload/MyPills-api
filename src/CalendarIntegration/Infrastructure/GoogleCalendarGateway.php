@@ -7,7 +7,9 @@ namespace CalendarIntegration\Infrastructure;
 use CalendarIntegration\Domain\CalendarOAuthTokens;
 use CalendarIntegration\Domain\CalendarProvider;
 use CalendarIntegration\Domain\ServerAuthCodeExchanger;
+use Psr\Log\LoggerInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
+use Symfony\Contracts\HttpClient\ResponseInterface;
 
 final class GoogleCalendarGateway implements CalendarProvider, ServerAuthCodeExchanger
 {
@@ -22,9 +24,10 @@ final class GoogleCalendarGateway implements CalendarProvider, ServerAuthCodeExc
         private readonly string $clientSecret = '',
         private readonly string $redirectUri = '',
         private readonly string $webClientId = '',
-        private readonly string $webClientSecret = ''
+        private readonly string $webClientSecret = '',
+        private readonly ?LoggerInterface $logger = null
     ) {
-        $this->tokenEndpoint = new OAuthTokenEndpoint($httpClient);
+        $this->tokenEndpoint = new OAuthTokenEndpoint($httpClient, $logger);
     }
 
     /**
@@ -167,6 +170,7 @@ final class GoogleCalendarGateway implements CalendarProvider, ServerAuthCodeExc
                 'json' => $event,
             ]
         );
+        $this->logCalendarResponse($isCreate ? 'POST' : 'PATCH', $url, $response);
 
         if ($response->getStatusCode() === 404 && $externalEventId !== null) {
             return $this->upsertEvent($accessToken, $title, $start, $end, $description, null, $idempotencyKey);
@@ -204,17 +208,36 @@ final class GoogleCalendarGateway implements CalendarProvider, ServerAuthCodeExc
         return $data['id'];
     }
 
+    private function logCalendarResponse(string $method, string $url, ResponseInterface $response): void
+    {
+        if ($this->logger === null) {
+            return;
+        }
+
+        $status = $response->getStatusCode();
+        $body = substr($response->getContent(false), 0, 800);
+        error_log(sprintf('GOOGLE_CALENDAR %s %s status=%d body=%s', $method, $url, $status, $body));
+        $this->logger->info('Google Calendar API response.', [
+            'method' => $method,
+            'url' => $url,
+            'status' => $status,
+            'body' => $body,
+        ]);
+    }
+
     public function deleteEvent(string $accessToken, string $externalEventId): void
     {
+        $url = 'https://www.googleapis.com/calendar/v3/calendars/primary/events/' . rawurlencode($externalEventId);
         $response = $this->httpClient->request(
             'DELETE',
-            'https://www.googleapis.com/calendar/v3/calendars/primary/events/' . rawurlencode($externalEventId),
+            $url,
             [
                 'headers' => [
                     'Authorization' => 'Bearer ' . $accessToken,
                 ],
             ]
         );
+        $this->logCalendarResponse('DELETE', $url, $response);
 
         // 404 is acceptable when deleting an already deleted event
         if ($response->getStatusCode() !== 204 && $response->getStatusCode() !== 200 && $response->getStatusCode() !== 404) {

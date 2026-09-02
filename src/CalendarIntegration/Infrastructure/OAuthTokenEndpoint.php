@@ -6,6 +6,7 @@ namespace CalendarIntegration\Infrastructure;
 
 use CalendarIntegration\Domain\CalendarAuthorizationRevoked;
 use CalendarIntegration\Domain\CalendarOAuthTokens;
+use Psr\Log\LoggerInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 use Symfony\Contracts\HttpClient\ResponseInterface;
 
@@ -17,7 +18,8 @@ use Symfony\Contracts\HttpClient\ResponseInterface;
 final class OAuthTokenEndpoint
 {
     public function __construct(
-        private readonly HttpClientInterface $httpClient
+        private readonly HttpClientInterface $httpClient,
+        private readonly ?LoggerInterface $logger = null
     ) {
     }
 
@@ -84,7 +86,45 @@ final class OAuthTokenEndpoint
             $body['client_secret'] = $clientSecret;
         }
 
-        return $this->httpClient->request('POST', $tokenUrl, ['body' => $body]);
+        $response = $this->httpClient->request('POST', $tokenUrl, ['body' => $body]);
+        $this->logTokenResponse($tokenUrl, $body['grant_type'] ?? 'unknown', $response);
+
+        return $response;
+    }
+
+    private function logTokenResponse(string $tokenUrl, string $grantType, ResponseInterface $response): void
+    {
+        if ($this->logger === null) {
+            return;
+        }
+
+        $decoded = json_decode($response->getContent(false), true);
+        $error = is_array($decoded) && is_string($decoded['error'] ?? null) ? $decoded['error'] : null;
+        $errorDescription = is_array($decoded) && is_string($decoded['error_description'] ?? null)
+            ? $decoded['error_description']
+            : null;
+
+        $status = $response->getStatusCode();
+        $hasAccessToken = is_array($decoded) && isset($decoded['access_token']);
+        $hasRefreshToken = is_array($decoded) && isset($decoded['refresh_token']);
+        error_log(sprintf(
+            'GOOGLE_OAUTH grant=%s status=%d error=%s errorDescription=%s hasAccessToken=%s hasRefreshToken=%s',
+            $grantType,
+            $status,
+            $error ?? '-',
+            $errorDescription ?? '-',
+            $hasAccessToken ? 'yes' : 'no',
+            $hasRefreshToken ? 'yes' : 'no'
+        ));
+        $this->logger->info('Calendar OAuth token endpoint response.', [
+            'url' => $tokenUrl,
+            'grantType' => $grantType,
+            'status' => $status,
+            'error' => $error,
+            'errorDescription' => $errorDescription,
+            'hasAccessToken' => $hasAccessToken,
+            'hasRefreshToken' => $hasRefreshToken,
+        ]);
     }
 
     private function tokensFromResponse(ResponseInterface $response, string $providerName): CalendarOAuthTokens
