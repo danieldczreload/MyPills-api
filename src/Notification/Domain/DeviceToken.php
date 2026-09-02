@@ -67,4 +67,23 @@ final class DeviceToken
     {
         return $this->createdAt;
     }
+
+    /**
+     * Flutter Locale.toString() uses underscore (es_MX). Canonical BCP-47 is es-MX.
+     */
+    public static function canonicalizeLocale(string $locale): ?string
+    {
+        $normalized = str_replace('_', '-', trim($locale));
+
+        if (preg_match('/^([a-z]{2})(?:-([a-z]{2}))?$/i', $normalized, $matches) !== 1) {
+            return null;
+        }
+
+        $language = strtolower($matches[1]);
+        if (!isset($matches[2])) {
+            return $language;
+        }
+
+        return $language . '-' . strtoupper($matches[2]);
+    }
 }

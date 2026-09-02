@@ -220,6 +220,8 @@ Los campos varían según `type`:
 }
 ```
 
+`platform` must be `android` or `ios`. `locale` is BCP-47 (`es-MX`, `es-SV`, or language-only `en`). Underscore form (`es_MX`) and mixed case (`es-mx`) are accepted and stored in canonical form.
+
 The `201` response contains only the registration `id`, `platform`, and `locale`. The FCM token is never returned. Use that `id` in `DELETE /devices/{deviceId}`.
 
 ### Body — `PATCH /notifications/preferences`

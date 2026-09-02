@@ -29,6 +29,17 @@ final class NotificationDomainTest extends TestCase
         self::assertSame('en-US', $token->locale());
     }
 
+    public function testCanonicalizeLocaleNormalizesUnderscoreAndCase(): void
+    {
+        self::assertSame('es-MX', DeviceToken::canonicalizeLocale('es_MX'));
+        self::assertSame('es-MX', DeviceToken::canonicalizeLocale('ES-mx'));
+        self::assertSame('es-SV', DeviceToken::canonicalizeLocale('es_sv'));
+        self::assertSame('en', DeviceToken::canonicalizeLocale('EN'));
+        self::assertNull(DeviceToken::canonicalizeLocale('invalid_locale_123'));
+        self::assertNull(DeviceToken::canonicalizeLocale('es-MEX'));
+        self::assertNull(DeviceToken::canonicalizeLocale(''));
+    }
+
     public function testDueDoseReminderGetters(): void
     {
         $doseId = DoseEventId::generate();

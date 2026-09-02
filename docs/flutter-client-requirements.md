@@ -249,6 +249,8 @@ POST /api/v1/devices
 }
 ```
 
+`platform` must be `android` or `ios`. Send BCP-47 `locale` (`es-MX` or `es-SV`). Flutter `Locale.toString()` (`es_MX`) is accepted and stored as `es-MX`.
+
 4. Re-register when Firebase rotates the token.
 5. Delete the registration on logout when the user is still authenticated:
 
