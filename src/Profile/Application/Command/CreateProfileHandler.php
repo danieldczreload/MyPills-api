@@ -6,8 +6,9 @@ namespace Profile\Application\Command;
 
 use Profile\Domain\PatientProfile;
 use Profile\Domain\ProfileRepository;
-use Shared\Domain\Result;
+use Profile\Domain\ValueObject\Timezone;
 use Shared\Domain\Failure;
+use Shared\Domain\Result;
 use Shared\Domain\ValueObject\ProfileId;
 use Shared\Domain\ValueObject\UserId;
 use Symfony\Component\Messenger\Attribute\AsMessageHandler;
@@ -29,6 +30,11 @@ final class CreateProfileHandler
             return Result::failure(Failure::validation('Profile name cannot be empty.'));
         }
 
+        $timezone = Timezone::tryParse($command->timezone);
+        if ($timezone === null) {
+            return Result::failure(Failure::validation(sprintf('Timezone "%s" is not a valid IANA identifier.', $command->timezone)));
+        }
+
         $profile = PatientProfile::create(
             ProfileId::generate(),
             new UserId($command->accountId),
@@ -36,7 +42,7 @@ final class CreateProfileHandler
             $command->birthDate,
             $command->gender,
             $command->photoUrl,
-            $command->timezone
+            $timezone->value()
         );
 
         $this->profileRepository->save($profile);

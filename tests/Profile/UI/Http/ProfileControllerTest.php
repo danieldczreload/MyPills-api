@@ -133,4 +133,74 @@ final class ProfileControllerTest extends WebTestCase
         $client->request('DELETE', '/api/v1/profiles/' . $profileId, [], [], $headers);
         self::assertSame(Response::HTTP_NO_CONTENT, $client->getResponse()->getStatusCode());
     }
+
+    public function testRejectsNonIanaTimezoneAndAcceptsIana(): void
+    {
+        $client = self::createClient();
+
+        $client->request(
+            'POST',
+            '/api/v1/auth/google',
+            [],
+            [],
+            ['CONTENT_TYPE' => 'application/json'],
+            $this->encode(['idToken' => 'valid-proftz-' . bin2hex(random_bytes(4)) . '@example.com'])
+        );
+        self::assertSame(Response::HTTP_OK, $client->getResponse()->getStatusCode());
+        $authData = $this->decodeResponse($client->getResponse()->getContent());
+        $token = $this->stringValue($authData, 'token');
+
+        $headers = [
+            'HTTP_AUTHORIZATION' => 'Bearer ' . $token,
+            'CONTENT_TYPE' => 'application/json',
+        ];
+
+        $client->request(
+            'POST',
+            '/api/v1/profiles',
+            [],
+            [],
+            $headers,
+            $this->encode([
+                'name' => 'CST Profile',
+                'birthDate' => '1995-05-15T00:00:00Z',
+                'gender' => 'male',
+                'timezone' => 'CST',
+            ])
+        );
+        self::assertSame(Response::HTTP_UNPROCESSABLE_ENTITY, $client->getResponse()->getStatusCode());
+
+        $client->request(
+            'POST',
+            '/api/v1/profiles',
+            [],
+            [],
+            $headers,
+            $this->encode([
+                'name' => 'IANA Profile',
+                'birthDate' => '1995-05-15T00:00:00Z',
+                'gender' => 'female',
+                'timezone' => 'America/El_Salvador',
+            ])
+        );
+        self::assertSame(Response::HTTP_CREATED, $client->getResponse()->getStatusCode());
+        $profile = $this->decodeResponse($client->getResponse()->getContent());
+        self::assertSame('America/El_Salvador', $this->stringValue($profile, 'timezone'));
+        $profileId = $this->stringValue($profile, 'id');
+
+        $client->request(
+            'PATCH',
+            '/api/v1/profiles/' . $profileId,
+            [],
+            [],
+            $headers,
+            $this->encode([
+                'name' => 'IANA Profile',
+                'birthDate' => '1995-05-15T00:00:00Z',
+                'gender' => 'female',
+                'timezone' => 'CST',
+            ])
+        );
+        self::assertSame(Response::HTTP_UNPROCESSABLE_ENTITY, $client->getResponse()->getStatusCode());
+    }
 }

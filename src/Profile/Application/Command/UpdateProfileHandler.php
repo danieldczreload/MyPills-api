@@ -5,8 +5,9 @@ declare(strict_types=1);
 namespace Profile\Application\Command;
 
 use Profile\Domain\ProfileRepository;
-use Shared\Domain\Result;
+use Profile\Domain\ValueObject\Timezone;
 use Shared\Domain\Failure;
+use Shared\Domain\Result;
 use Shared\Domain\ValueObject\ProfileId;
 use Symfony\Component\Messenger\Attribute\AsMessageHandler;
 
@@ -38,12 +39,17 @@ final class UpdateProfileHandler
             return Result::failure(Failure::validation('Profile name cannot be empty.'));
         }
 
+        $timezone = Timezone::tryParse($command->timezone);
+        if ($timezone === null) {
+            return Result::failure(Failure::validation(sprintf('Timezone "%s" is not a valid IANA identifier.', $command->timezone)));
+        }
+
         $profile->update(
             $command->name,
             $command->birthDate,
             $command->gender,
             $command->photoUrl,
-            $command->timezone
+            $timezone->value()
         );
         $this->profileRepository->save($profile);
 

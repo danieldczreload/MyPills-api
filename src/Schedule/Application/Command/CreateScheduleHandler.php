@@ -6,16 +6,17 @@ namespace Schedule\Application\Command;
 
 use Medication\Domain\MedicationRepository;
 use Profile\Domain\ProfileRepository;
-use Schedule\Domain\Schedule;
-use Schedule\Domain\DailySchedule;
+use Profile\Domain\ValueObject\Timezone;
 use Schedule\Domain\DailyIntervalSchedule;
-use Schedule\Domain\SpecificDaysSchedule;
-use Schedule\Domain\ScheduleRepository;
+use Schedule\Domain\DailySchedule;
+use Schedule\Domain\Schedule;
 use Schedule\Domain\ScheduleCreatedEvent;
+use Schedule\Domain\ScheduleRepository;
+use Schedule\Domain\SpecificDaysSchedule;
 use Schedule\Domain\ValueObject\TimeOfDay;
 use Shared\Application\Bus\EventBus;
-use Shared\Domain\Result;
 use Shared\Domain\Failure;
+use Shared\Domain\Result;
 use Shared\Domain\ValueObject\MedicationId;
 use Shared\Domain\ValueObject\ProfileId;
 use Shared\Domain\ValueObject\ScheduleId;
@@ -69,6 +70,9 @@ final class CreateScheduleHandler
 
         $scheduleId = ScheduleId::generate();
         $now = new \DateTimeImmutable();
+        $timezone = Timezone::tryParse($profile->timezone()) ?? new Timezone('UTC');
+        $startDate = $timezone->startOfDay($command->startDate);
+        $endDate = $command->endDate !== null ? $timezone->endOfDay($command->endDate) : null;
 
         if ($command->type === 'daily') {
             if ($command->timesOfDay === null || count($command->timesOfDay) === 0) {
@@ -82,8 +86,8 @@ final class CreateScheduleHandler
                 $scheduleId,
                 $medicationId,
                 $times,
-                $command->startDate,
-                $command->endDate,
+                $startDate,
+                $endDate,
                 $command->clientId,
                 $now,
                 $now
@@ -104,8 +108,8 @@ final class CreateScheduleHandler
                 $command->everyHours,
                 $startAt,
                 $endAt,
-                $command->startDate,
-                $command->endDate,
+                $startDate,
+                $endDate,
                 $command->clientId,
                 $now,
                 $now
@@ -126,8 +130,8 @@ final class CreateScheduleHandler
                 $medicationId,
                 $command->daysOfWeek,
                 $times,
-                $command->startDate,
-                $command->endDate,
+                $startDate,
+                $endDate,
                 $command->clientId,
                 $now,
                 $now

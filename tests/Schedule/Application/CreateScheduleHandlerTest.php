@@ -13,6 +13,7 @@ use Profile\Domain\ProfileRepository;
 use Schedule\Application\Command\CreateScheduleCommand;
 use Schedule\Application\Command\CreateScheduleHandler;
 use Schedule\Domain\DailySchedule;
+use Schedule\Domain\Schedule;
 use Schedule\Domain\ScheduleCreatedEvent;
 use Schedule\Domain\ScheduleRepository;
 use Schedule\Domain\ValueObject\TimeOfDay;
@@ -194,6 +195,52 @@ final class CreateScheduleHandlerTest extends TestCase
         $schedData = $result->getValue();
         self::assertSame('specific_days', $schedData['type']);
         self::assertSame([1, 3, 5], $schedData['daysOfWeek']);
+    }
+
+    public function testCreateDailyScheduleAnchorsDatesToProfileTimezone(): void
+    {
+        $profile = new PatientProfile(
+            new ProfileId('prof-1'),
+            new UserId('acc-1'),
+            'Name',
+            new \DateTimeImmutable('1990-01-01'),
+            'male',
+            null,
+            new \DateTimeImmutable(),
+            new \DateTimeImmutable(),
+            'America/El_Salvador'
+        );
+        $this->profileRepo->method('findById')->willReturn($profile);
+
+        $medication = new Medication(new MedicationId('med-1'), new ProfileId('prof-1'), 'Name', '10mg', 'pill', 'instr', null, new \DateTimeImmutable(), new \DateTimeImmutable());
+        $this->medicationRepo->method('findById')->willReturn($medication);
+
+        $this->scheduleRepo->expects(self::once())->method('save')->with(self::callback(
+            static function (Schedule $schedule): bool {
+                $tz = new \DateTimeZone('America/El_Salvador');
+                $start = $schedule->startDate()->setTimezone($tz);
+                $end = $schedule->endDate()?->setTimezone($tz);
+                self::assertSame('2026-08-28 00:00:00', $start->format('Y-m-d H:i:s'));
+                self::assertNotNull($end);
+                self::assertSame('2026-08-30 23:59:59', $end->format('Y-m-d H:i:s'));
+
+                return true;
+            }
+        ));
+        $this->eventBus->expects(self::once())->method('publish');
+
+        $cmd = new CreateScheduleCommand(
+            'prof-1',
+            'acc-1',
+            'med-1',
+            'daily',
+            new \DateTimeImmutable('2026-08-28'),
+            new \DateTimeImmutable('2026-08-30'),
+            [['hour' => 16, 'minute' => 25]]
+        );
+        $result = ($this->handler)($cmd);
+
+        self::assertTrue($result->isSuccess());
     }
 
     public function testCreateInvalidTypeReturnsValidationFailure(): void

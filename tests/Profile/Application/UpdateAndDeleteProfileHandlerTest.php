@@ -49,11 +49,21 @@ final class UpdateAndDeleteProfileHandlerTest extends TestCase
         $repoSucc->expects(self::once())->method('save')->with($profileSucc);
         $handlerSucc = new UpdateProfileHandler($repoSucc);
         $birthDate = new \DateTimeImmutable('1990-01-01');
-        $res = $handlerSucc(new UpdateProfileCommand('prof-1', 'acc-1', 'New Name', $birthDate, 'female', 'https://example.com/p.jpg'));
+        $res = $handlerSucc(new UpdateProfileCommand('prof-1', 'acc-1', 'New Name', $birthDate, 'female', 'https://example.com/p.jpg', 'America/El_Salvador'));
         self::assertTrue($res->isSuccess());
         /** @var array<string, mixed> $updatedProfile */
         $updatedProfile = $res->getValue();
         self::assertSame('New Name', $updatedProfile['name']);
+        self::assertSame('America/El_Salvador', $updatedProfile['timezone']);
+
+        // Invalid timezone abbreviation
+        $profileTz = new PatientProfile(new ProfileId('prof-1'), new UserId('acc-1'), 'Old Name', new \DateTimeImmutable('1990-01-01'), 'male', null, new \DateTimeImmutable(), new \DateTimeImmutable());
+        $repoTz = $this->createMock(ProfileRepository::class);
+        $repoTz->method('findById')->willReturn($profileTz);
+        $handlerTz = new UpdateProfileHandler($repoTz);
+        $res = $handlerTz(new UpdateProfileCommand('prof-1', 'acc-1', 'New Name', $birthDate, 'female', null, 'CST'));
+        self::assertTrue($res->isFailure());
+        self::assertSame('Timezone "CST" is not a valid IANA identifier.', $res->getFailure()->getMessage());
     }
 
     public function testDeleteProfile(): void
