@@ -127,6 +127,16 @@ final class DoctrineScheduleRepository implements ScheduleRepository
         return array_map($this->mapToDomain(...), $entities);
     }
 
+    /**
+     * @return Schedule[]
+     */
+    public function findAll(): array
+    {
+        $entities = $this->entityManager->getRepository(ScheduleDoctrineEntity::class)->findAll();
+
+        return array_map($this->mapToDomain(...), $entities);
+    }
+
     public function findByClientId(string $clientId): ?Schedule
     {
         $entity = $this->entityManager->getRepository(ScheduleDoctrineEntity::class)

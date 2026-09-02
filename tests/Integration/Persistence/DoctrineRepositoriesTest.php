@@ -166,6 +166,11 @@ final class DoctrineRepositoriesTest extends KernelTestCase
         self::assertNotNull($foundSpec);
         self::assertSame('specific_days', $foundSpec->type());
 
+        $allIds = array_map(static fn ($schedule) => $schedule->id()->value(), $schedRepo->findAll());
+        self::assertContains($dailyId->value(), $allIds);
+        self::assertContains($intervalId->value(), $allIds);
+        self::assertContains($specId->value(), $allIds);
+
         $schedules = $schedRepo->findByMedicationIds([$medId]);
         self::assertCount(3, $schedules);
 
