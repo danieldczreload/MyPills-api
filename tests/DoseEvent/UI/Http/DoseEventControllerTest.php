@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Tests\DoseEvent\UI\Http;
 
+use Doctrine\ORM\EntityManagerInterface;
+use DoseEvent\Infrastructure\Persistence\DoseEventDoctrineEntity;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -177,5 +179,95 @@ final class DoseEventControllerTest extends WebTestCase
             ])
         );
         self::assertSame(Response::HTTP_CREATED, $client->getResponse()->getStatusCode());
+    }
+
+    public function testExpandedDosesPersistUtcInstantForProfileTimezone(): void
+    {
+        $client = self::createClient();
+        $tz = new \DateTimeZone('America/El_Salvador');
+        $start = (new \DateTimeImmutable('now', $tz))->modify('+1 day')->setTime(0, 0, 0);
+        $end = $start->modify('+2 days');
+
+        $client->request(
+            'POST',
+            '/api/v1/auth/google',
+            [],
+            [],
+            ['CONTENT_TYPE' => 'application/json'],
+            $this->encode(['idToken' => 'valid-dosetz-' . bin2hex(random_bytes(4)) . '@example.com'])
+        );
+        self::assertSame(Response::HTTP_OK, $client->getResponse()->getStatusCode());
+        $token = $this->stringValue($this->decodeResponse($client->getResponse()->getContent()), 'token');
+        $headers = [
+            'HTTP_AUTHORIZATION' => 'Bearer ' . $token,
+            'CONTENT_TYPE' => 'application/json',
+        ];
+
+        $client->request(
+            'POST',
+            '/api/v1/profiles',
+            [],
+            [],
+            $headers,
+            $this->encode([
+                'name' => 'TZ Patient',
+                'birthDate' => '1990-01-01T00:00:00Z',
+                'gender' => 'female',
+                'timezone' => 'America/El_Salvador',
+            ])
+        );
+        self::assertSame(Response::HTTP_CREATED, $client->getResponse()->getStatusCode());
+        $profileId = $this->stringValue($this->decodeResponse($client->getResponse()->getContent()), 'id');
+
+        $client->request(
+            'POST',
+            '/api/v1/profiles/' . $profileId . '/medications',
+            [],
+            [],
+            $headers,
+            $this->encode([
+                'name' => 'Aspirin',
+                'dosage' => '100mg',
+            ])
+        );
+        self::assertSame(Response::HTTP_CREATED, $client->getResponse()->getStatusCode());
+        $medicationId = $this->stringValue($this->decodeResponse($client->getResponse()->getContent()), 'id');
+
+        $client->request(
+            'POST',
+            '/api/v1/profiles/' . $profileId . '/schedules',
+            [],
+            [],
+            $headers,
+            $this->encode([
+                'medicationId' => $medicationId,
+                'type' => 'daily',
+                'startDate' => $start->format('Y-m-d'),
+                'endDate' => $end->format('Y-m-d'),
+                'timesOfDay' => [['hour' => 16, 'minute' => 25]],
+            ])
+        );
+        self::assertSame(Response::HTTP_CREATED, $client->getResponse()->getStatusCode());
+        $scheduleId = $this->stringValue($this->decodeResponse($client->getResponse()->getContent()), 'id');
+
+        /** @var EntityManagerInterface $em */
+        $em = static::getContainer()->get(EntityManagerInterface::class);
+        $em->clear();
+
+        /** @var DoseEventDoctrineEntity[] $rows */
+        $rows = $em->getRepository(DoseEventDoctrineEntity::class)->findBy(
+            ['scheduleId' => $scheduleId],
+            ['scheduledAt' => 'ASC']
+        );
+
+        self::assertCount(3, $rows);
+        foreach ($rows as $row) {
+            self::assertSame('22:25', $row->getScheduledAt()->format('H:i'));
+        }
+        $last = $rows[2];
+        self::assertSame(
+            $end->format('Y-m-d'),
+            $last->getScheduledAt()->setTimezone($tz)->format('Y-m-d')
+        );
     }
 }

@@ -19,18 +19,24 @@ final class DoseEventExpander
     public function expand(Schedule $schedule, \DateTimeImmutable $from, \DateTimeImmutable $to, \DateTimeZone $timezone): array
     {
         $occurrences = [];
+        $utc = new \DateTimeZone('UTC');
 
-        $startDate = $schedule->startDate()->setTimezone($timezone)->setTime(0, 0, 0);
-        $endDate = $schedule->endDate()?->setTimezone($timezone)->setTime(23, 59, 59);
+        $startDate = new \DateTimeImmutable($schedule->startDate()->format('Y-m-d'), $timezone);
+        $endDate = $schedule->endDate() !== null
+            ? (new \DateTimeImmutable($schedule->endDate()->format('Y-m-d'), $timezone))->setTime(23, 59, 59)
+            : null;
 
-        $fromDay = $from->setTimezone($timezone)->setTime(0, 0, 0);
-        $toDay = $to->setTimezone($timezone)->setTime(23, 59, 59);
+        $fromDay = $from->setTimezone($timezone)->format('Y-m-d');
+        $toDay = $to->setTimezone($timezone)->format('Y-m-d');
+        $startDay = $startDate->format('Y-m-d');
+        $endDay = $endDate?->format('Y-m-d');
 
-        $current = $fromDay < $startDate ? $startDate : $fromDay;
-        $lastDay = $endDate !== null && $endDate < $toDay ? $endDate : $toDay;
+        $currentDay = $fromDay > $startDay ? $fromDay : $startDay;
+        $lastDay = $endDay !== null && $endDay < $toDay ? $endDay : $toDay;
 
-        while ($current <= $lastDay) {
-            foreach ($this->occurrenceTimesForDay($schedule, $current) as $occurrenceTime) {
+        while ($currentDay <= $lastDay) {
+            $localDay = new \DateTimeImmutable($currentDay, $timezone);
+            foreach ($this->occurrenceTimesForDay($schedule, $localDay, $timezone) as $occurrenceTime) {
                 if ($occurrenceTime < $from || $occurrenceTime > $to) {
                     continue;
                 }
@@ -42,11 +48,11 @@ final class DoseEventExpander
                     DoseEventId::generate(),
                     $schedule->medicationId(),
                     $schedule->id(),
-                    $occurrenceTime
+                    $occurrenceTime->setTimezone($utc)
                 );
             }
 
-            $current = $current->modify('+1 day');
+            $currentDay = (new \DateTimeImmutable($currentDay.' +1 day', $timezone))->format('Y-m-d');
         }
 
         return $occurrences;
@@ -55,7 +61,7 @@ final class DoseEventExpander
     /**
      * @return \DateTimeImmutable[]
      */
-    private function occurrenceTimesForDay(Schedule $schedule, \DateTimeImmutable $localDay): array
+    private function occurrenceTimesForDay(Schedule $schedule, \DateTimeImmutable $localDay, \DateTimeZone $timezone): array
     {
         if ($schedule instanceof DailySchedule) {
             return array_map(
@@ -74,8 +80,10 @@ final class DoseEventExpander
                 : $localDay->setTime(23, 59, 59);
 
             // If endAt is earlier than startAt, the interval spans midnight into the next local day.
-            if ($intervalEnd < $intervalStart) {
-                $intervalEnd = $intervalEnd->modify('+1 day');
+            if ($endAt !== null && $intervalEnd < $intervalStart) {
+                $nextDay = (new \DateTimeImmutable($localDay->format('Y-m-d').' +1 day', $timezone))->format('Y-m-d');
+                $intervalEnd = (new \DateTimeImmutable($nextDay, $timezone))
+                    ->setTime($endAt->hour(), $endAt->minute(), 0);
             }
 
             $times = [];

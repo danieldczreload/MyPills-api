@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\DoseEvent\Domain;
 
+use DoseEvent\Domain\DoseEvent;
 use DoseEvent\Domain\DoseEventExpander;
 use PHPUnit\Framework\TestCase;
 use Schedule\Domain\DailyIntervalSchedule;
@@ -182,8 +183,99 @@ final class DoseEventExpanderTest extends TestCase
         self::assertSame('2026-08-29', $events[1]->scheduledAt()->setTimezone($tz)->format('Y-m-d'));
         self::assertSame('2026-08-30', $events[2]->scheduledAt()->setTimezone($tz)->format('Y-m-d'));
         foreach ($events as $event) {
+            self::assertSame('UTC', $event->scheduledAt()->getTimezone()->getName());
             self::assertSame('16:25', $event->scheduledAt()->setTimezone($tz)->format('H:i'));
-            self::assertSame('22:25', $event->scheduledAt()->setTimezone($this->utc)->format('H:i'));
+            self::assertSame('22:25', $event->scheduledAt()->format('H:i'));
         }
+    }
+
+    public function testExpandRebuildsCalendarBoundsWhenDatesHydratedAsUtc(): void
+    {
+        $tz = new \DateTimeZone('America/El_Salvador');
+        // Doctrine stores wall-clock and hydrates as UTC (naive TIMESTAMP).
+        $startDate = new \DateTimeImmutable('2026-08-28 00:00:00', $this->utc);
+        $endDate = new \DateTimeImmutable('2026-08-30 00:00:00', $this->utc);
+        $schedule = new DailySchedule(
+            $this->scheduleId,
+            $this->medicationId,
+            [new TimeOfDay(16, 25)],
+            $startDate,
+            $endDate,
+            'client-sv-naive',
+            $startDate,
+            $startDate
+        );
+
+        $from = new \DateTimeImmutable('2026-08-28 00:00:00', $tz);
+        $to = new \DateTimeImmutable('2026-08-30 23:59:59', $tz);
+
+        $events = $this->expander->expand($schedule, $from, $to, $tz);
+
+        self::assertCount(3, $events);
+        self::assertSame('2026-08-30 22:25', $events[2]->scheduledAt()->format('Y-m-d H:i'));
+    }
+
+    public function testExpandDoesNotDuplicateOnDstFallback(): void
+    {
+        $tz = new \DateTimeZone('America/New_York');
+        $startDate = new \DateTimeImmutable('2026-10-31 00:00:00', $this->utc);
+        $endDate = new \DateTimeImmutable('2026-11-02 00:00:00', $this->utc);
+        $schedule = new DailySchedule(
+            $this->scheduleId,
+            $this->medicationId,
+            [new TimeOfDay(8, 0)],
+            $startDate,
+            $endDate,
+            'client-dst-fall',
+            $startDate,
+            $startDate
+        );
+
+        $from = new \DateTimeImmutable('2026-10-31 00:00:00', $tz);
+        $to = new \DateTimeImmutable('2026-11-02 23:59:59', $tz);
+
+        $events = $this->expander->expand($schedule, $from, $to, $tz);
+        $localTimes = array_map(
+            static fn (DoseEvent $event): string => $event->scheduledAt()->setTimezone($tz)->format('Y-m-d H:i'),
+            $events
+        );
+
+        self::assertSame([
+            '2026-10-31 08:00',
+            '2026-11-01 08:00',
+            '2026-11-02 08:00',
+        ], $localTimes);
+    }
+
+    public function testExpandIncludesSpringForwardDay(): void
+    {
+        $tz = new \DateTimeZone('America/New_York');
+        $startDate = new \DateTimeImmutable('2026-03-07 00:00:00', $this->utc);
+        $endDate = new \DateTimeImmutable('2026-03-09 00:00:00', $this->utc);
+        $schedule = new DailySchedule(
+            $this->scheduleId,
+            $this->medicationId,
+            [new TimeOfDay(8, 0)],
+            $startDate,
+            $endDate,
+            'client-dst-spring',
+            $startDate,
+            $startDate
+        );
+
+        $from = new \DateTimeImmutable('2026-03-07 00:00:00', $tz);
+        $to = new \DateTimeImmutable('2026-03-09 23:59:59', $tz);
+
+        $events = $this->expander->expand($schedule, $from, $to, $tz);
+        $localTimes = array_map(
+            static fn (DoseEvent $event): string => $event->scheduledAt()->setTimezone($tz)->format('Y-m-d H:i'),
+            $events
+        );
+
+        self::assertSame([
+            '2026-03-07 08:00',
+            '2026-03-08 08:00',
+            '2026-03-09 08:00',
+        ], $localTimes);
     }
 }
