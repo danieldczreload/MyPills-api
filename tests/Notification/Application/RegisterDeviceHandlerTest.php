@@ -147,6 +147,29 @@ final class RegisterDeviceHandlerTest extends TestCase
         self::assertSame('es-MX', $existing->locale());
     }
 
+    public function testExistingCanonicalLocaleSkipsSaveWhenIncomingUsesUnderscore(): void
+    {
+        $existing = new DeviceToken(
+            'token-id-1',
+            new UserId('user-1'),
+            'valid-fcm-token',
+            'android',
+            'es-MX',
+            new \DateTimeImmutable()
+        );
+
+        $this->repo->method('findByToken')->willReturn($existing);
+        $this->repo->expects(self::never())->method('save');
+
+        $cmd = new RegisterDeviceCommand('user-1', 'valid-fcm-token', 'android', 'es_MX');
+        $result = ($this->handler)($cmd);
+
+        self::assertTrue($result->isSuccess());
+        $data = $result->getValue();
+        self::assertSame('es-MX', $data['locale']);
+        self::assertSame('es-MX', $existing->locale());
+    }
+
     public function testRegisterExistingTokenSameAccountUpdatesMetadata(): void
     {
         $existing = new DeviceToken(

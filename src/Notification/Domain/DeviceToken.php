@@ -69,7 +69,7 @@ final class DeviceToken
     }
 
     /**
-     * Flutter Locale.toString() uses underscore (es_MX). Canonical BCP-47 is es-MX.
+     * Canonical BCP-47: ll or ll-CC. Underscore is treated as hyphen.
      */
     public static function canonicalizeLocale(string $locale): ?string
     {
