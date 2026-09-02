@@ -85,6 +85,8 @@ final class DoctrineScheduleRepository implements ScheduleRepository
             $entity->setUpdatedAt($schedule->updatedAt());
         }
 
+        $entity->setCancelledAt($schedule->cancelledAt());
+
         $this->entityManager->flush();
     }
 
@@ -176,7 +178,8 @@ final class DoctrineScheduleRepository implements ScheduleRepository
                 $entity->getEndDate(),
                 $entity->getClientId(),
                 $entity->getCreatedAt(),
-                $entity->getUpdatedAt()
+                $entity->getUpdatedAt(),
+                $entity->getCancelledAt()
             );
         }
 
@@ -195,7 +198,8 @@ final class DoctrineScheduleRepository implements ScheduleRepository
                 $entity->getEndDate(),
                 $entity->getClientId(),
                 $entity->getCreatedAt(),
-                $entity->getUpdatedAt()
+                $entity->getUpdatedAt(),
+                $entity->getCancelledAt()
             );
         }
 
@@ -214,7 +218,8 @@ final class DoctrineScheduleRepository implements ScheduleRepository
                 $entity->getEndDate(),
                 $entity->getClientId(),
                 $entity->getCreatedAt(),
-                $entity->getUpdatedAt()
+                $entity->getUpdatedAt(),
+                $entity->getCancelledAt()
             );
         }
 

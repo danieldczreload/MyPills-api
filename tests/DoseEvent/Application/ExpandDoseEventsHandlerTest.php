@@ -6,6 +6,7 @@ namespace App\Tests\DoseEvent\Application;
 
 use DoseEvent\Application\Command\ExpandDoseEventsCommand;
 use DoseEvent\Application\Command\ExpandDoseEventsHandler;
+use DoseEvent\Application\MaterializeUpcomingOccurrences;
 use DoseEvent\Domain\DoseEvent;
 use DoseEvent\Domain\DoseEventExpander;
 use DoseEvent\Domain\DoseEventRepository;
@@ -92,8 +93,7 @@ final class ExpandDoseEventsHandlerTest extends TestCase
 
         $handler = new ExpandDoseEventsHandler(
             $scheduleRepo,
-            $doseEventRepo,
-            new DoseEventExpander(),
+            new MaterializeUpcomingOccurrences($doseEventRepo, new DoseEventExpander()),
             $medicationRepo,
             $profileRepo,
             $eventBus
@@ -167,8 +167,7 @@ final class ExpandDoseEventsHandlerTest extends TestCase
 
         $handler = new ExpandDoseEventsHandler(
             $scheduleRepo,
-            $doseEventRepo,
-            $expander,
+            new MaterializeUpcomingOccurrences($doseEventRepo, $expander),
             $medicationRepo,
             $profileRepo,
             $eventBus
@@ -194,8 +193,7 @@ final class ExpandDoseEventsHandlerTest extends TestCase
 
         $handler = new ExpandDoseEventsHandler(
             $scheduleRepo,
-            $doseEventRepo,
-            new DoseEventExpander(),
+            new MaterializeUpcomingOccurrences($doseEventRepo, new DoseEventExpander()),
             $this->createMock(MedicationRepository::class),
             $this->createMock(ProfileRepository::class),
             $eventBus
@@ -266,8 +264,7 @@ final class ExpandDoseEventsHandlerTest extends TestCase
 
         $handler = new ExpandDoseEventsHandler(
             $scheduleRepo,
-            $doseEventRepo,
-            new DoseEventExpander(),
+            new MaterializeUpcomingOccurrences($doseEventRepo, new DoseEventExpander()),
             $medicationRepo,
             $profileRepo,
             $eventBus
@@ -277,6 +274,43 @@ final class ExpandDoseEventsHandlerTest extends TestCase
         self::assertTrue($result->isSuccess());
         /** @var array{doseEventsCreated: int} $data */
         $data = $result->getValue();
+        self::assertSame(0, $data['doseEventsCreated']);
+    }
+
+    public function testSkipsCancelledSchedules(): void
+    {
+        $scheduleRepo = $this->createMock(ScheduleRepository::class);
+        $doseEventRepo = $this->createMock(DoseEventRepository::class);
+        $eventBus = $this->createMock(EventBus::class);
+
+        $schedule = new DailySchedule(
+            new ScheduleId('123e4567-e89b-12d3-a456-426614174000'),
+            new MedicationId('223e4567-e89b-12d3-a456-426614174000'),
+            [new TimeOfDay(8, 0)],
+            new \DateTimeImmutable('2026-09-01'),
+            null,
+            null,
+            new \DateTimeImmutable(),
+            new \DateTimeImmutable()
+        );
+        $schedule->markCancelled(new \DateTimeImmutable('2026-09-02T12:00:00Z'));
+        $scheduleRepo->method('findAll')->willReturn([$schedule]);
+        $doseEventRepo->expects(self::never())->method('save');
+        $eventBus->expects(self::never())->method('publish');
+
+        $handler = new ExpandDoseEventsHandler(
+            $scheduleRepo,
+            new MaterializeUpcomingOccurrences($doseEventRepo, new DoseEventExpander()),
+            $this->createMock(MedicationRepository::class),
+            $this->createMock(ProfileRepository::class),
+            $eventBus
+        );
+        $result = $handler(new ExpandDoseEventsCommand());
+
+        self::assertTrue($result->isSuccess());
+        /** @var array{schedulesScanned: int, doseEventsCreated: int} $data */
+        $data = $result->getValue();
+        self::assertSame(0, $data['schedulesScanned']);
         self::assertSame(0, $data['doseEventsCreated']);
     }
 }

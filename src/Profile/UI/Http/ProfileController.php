@@ -74,7 +74,7 @@ final class ProfileController extends ApiController
         $name = is_string($data['name'] ?? null) ? $data['name'] : '';
         $gender = is_string($data['gender'] ?? null) ? $data['gender'] : '';
         $photoUrl = isset($data['photoUrl']) && is_string($data['photoUrl']) ? $data['photoUrl'] : null;
-        $timezone = isset($data['timezone']) && is_string($data['timezone']) ? $data['timezone'] : 'UTC';
+        $timezone = isset($data['timezone']) && is_string($data['timezone']) ? $data['timezone'] : null;
 
         $command = new UpdateProfileCommand(
             $id,

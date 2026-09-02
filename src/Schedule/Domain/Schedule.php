@@ -16,7 +16,8 @@ abstract class Schedule
         protected readonly ?\DateTimeImmutable $endDate,
         protected readonly ?string $clientId,
         protected readonly \DateTimeImmutable $createdAt,
-        protected readonly \DateTimeImmutable $updatedAt
+        protected readonly \DateTimeImmutable $updatedAt,
+        protected ?\DateTimeImmutable $cancelledAt = null
     ) {
     }
 
@@ -53,6 +54,21 @@ abstract class Schedule
     public function updatedAt(): \DateTimeImmutable
     {
         return $this->updatedAt;
+    }
+
+    public function cancelledAt(): ?\DateTimeImmutable
+    {
+        return $this->cancelledAt;
+    }
+
+    public function isCancelled(): bool
+    {
+        return $this->cancelledAt !== null;
+    }
+
+    public function markCancelled(\DateTimeImmutable $at): void
+    {
+        $this->cancelledAt = $at;
     }
 
     abstract public function type(): string;

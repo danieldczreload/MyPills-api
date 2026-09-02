@@ -40,6 +40,9 @@ abstract class ScheduleDoctrineEntity
     #[ORM\Column(type: 'datetime_immutable')]
     protected \DateTimeImmutable $updatedAt;
 
+    #[ORM\Column(type: 'datetime_immutable', nullable: true)]
+    protected ?\DateTimeImmutable $cancelledAt = null;
+
     public function __construct(
         string $id,
         string $medicationId,
@@ -96,5 +99,15 @@ abstract class ScheduleDoctrineEntity
     public function setUpdatedAt(\DateTimeImmutable $updatedAt): void
     {
         $this->updatedAt = $updatedAt;
+    }
+
+    public function getCancelledAt(): ?\DateTimeImmutable
+    {
+        return $this->cancelledAt;
+    }
+
+    public function setCancelledAt(?\DateTimeImmutable $cancelledAt): void
+    {
+        $this->cancelledAt = $cancelledAt;
     }
 }

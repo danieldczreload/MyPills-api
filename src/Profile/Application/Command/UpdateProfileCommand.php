@@ -13,7 +13,7 @@ final class UpdateProfileCommand
         public readonly \DateTimeImmutable $birthDate,
         public readonly string $gender,
         public readonly ?string $photoUrl = null,
-        public readonly string $timezone = 'UTC'
+        public readonly ?string $timezone = null
     ) {
     }
 }

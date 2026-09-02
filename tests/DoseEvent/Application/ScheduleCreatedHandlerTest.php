@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\DoseEvent\Application;
 
 use DoseEvent\Application\Event\ScheduleCreatedHandler;
+use DoseEvent\Application\MaterializeUpcomingOccurrences;
 use DoseEvent\Domain\DoseEventExpander;
 use DoseEvent\Domain\DoseEventRepository;
 use DoseEvent\Domain\DoseEventsExpandedEvent;
@@ -37,8 +38,7 @@ final class ScheduleCreatedHandlerTest extends TestCase
 
         $handler = new ScheduleCreatedHandler(
             $scheduleRepo,
-            $doseRepo,
-            new DoseEventExpander(),
+            new MaterializeUpcomingOccurrences($doseRepo, new DoseEventExpander()),
             $eventBus,
             $profileRepo
         );
@@ -93,8 +93,7 @@ final class ScheduleCreatedHandlerTest extends TestCase
 
         $handler = new ScheduleCreatedHandler(
             $scheduleRepo,
-            $doseRepo,
-            new DoseEventExpander(),
+            new MaterializeUpcomingOccurrences($doseRepo, new DoseEventExpander()),
             $eventBus,
             $profileRepo
         );

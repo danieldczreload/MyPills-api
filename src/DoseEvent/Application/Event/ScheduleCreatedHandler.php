@@ -4,8 +4,7 @@ declare(strict_types=1);
 
 namespace DoseEvent\Application\Event;
 
-use DoseEvent\Domain\DoseEventExpander;
-use DoseEvent\Domain\DoseEventRepository;
+use DoseEvent\Application\MaterializeUpcomingOccurrences;
 use DoseEvent\Domain\DoseEventsExpandedEvent;
 use Profile\Domain\ProfileRepository;
 use Profile\Domain\ValueObject\Timezone;
@@ -21,8 +20,7 @@ final class ScheduleCreatedHandler
 {
     public function __construct(
         private readonly ScheduleRepository $scheduleRepository,
-        private readonly DoseEventRepository $doseEventRepository,
-        private readonly DoseEventExpander $doseEventExpander,
+        private readonly MaterializeUpcomingOccurrences $materializeUpcomingOccurrences,
         private readonly EventBus $eventBus,
         private readonly ProfileRepository $profileRepository
     ) {
@@ -40,21 +38,7 @@ final class ScheduleCreatedHandler
 
         $now = new \DateTimeImmutable();
         $to = $now->modify('+14 days');
-
-        $occurrences = $this->doseEventExpander->expand($schedule, $now, $to, $timezone);
-
-        // Fetch existing dose events in this range to avoid duplicates
-        $existing = $this->doseEventRepository->findByScheduleIdsAndRange([$schedule->id()], $now, $to);
-        $existingTimes = array_map(static fn ($e) => $e->scheduledAt()->format(\DateTimeInterface::ATOM), $existing);
-
-        $created = 0;
-        foreach ($occurrences as $occurrence) {
-            $formattedTime = $occurrence->scheduledAt()->format(\DateTimeInterface::ATOM);
-            if (!in_array($formattedTime, $existingTimes, true)) {
-                $this->doseEventRepository->save($occurrence);
-                ++$created;
-            }
-        }
+        $created = $this->materializeUpcomingOccurrences->materialize($schedule, $timezone, $now, $to);
 
         if ($created > 0) {
             $this->eventBus->publish(new DoseEventsExpandedEvent($event->profileId, $event->scheduleId));

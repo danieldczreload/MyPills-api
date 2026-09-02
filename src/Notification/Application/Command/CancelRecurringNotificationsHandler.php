@@ -134,6 +134,15 @@ final class CancelRecurringNotificationsHandler
 
         if ($command->deleteSchedule && $command->scheduleId !== null && $schedules !== []) {
             $this->scheduleRepository->delete($schedules[0]);
+        } else {
+            $cancelledAt = new \DateTimeImmutable();
+            foreach ($schedules as $schedule) {
+                if ($schedule->isCancelled()) {
+                    continue;
+                }
+                $schedule->markCancelled($cancelledAt);
+                $this->scheduleRepository->save($schedule);
+            }
         }
 
         return Result::success([

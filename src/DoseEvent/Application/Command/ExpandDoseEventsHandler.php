@@ -4,8 +4,7 @@ declare(strict_types=1);
 
 namespace DoseEvent\Application\Command;
 
-use DoseEvent\Domain\DoseEventExpander;
-use DoseEvent\Domain\DoseEventRepository;
+use DoseEvent\Application\MaterializeUpcomingOccurrences;
 use DoseEvent\Domain\DoseEventsExpandedEvent;
 use Medication\Domain\MedicationRepository;
 use Profile\Domain\ProfileRepository;
@@ -20,8 +19,7 @@ final class ExpandDoseEventsHandler
 {
     public function __construct(
         private readonly ScheduleRepository $scheduleRepository,
-        private readonly DoseEventRepository $doseEventRepository,
-        private readonly DoseEventExpander $doseEventExpander,
+        private readonly MaterializeUpcomingOccurrences $materializeUpcomingOccurrences,
         private readonly MedicationRepository $medicationRepository,
         private readonly ProfileRepository $profileRepository,
         private readonly EventBus $eventBus
@@ -39,8 +37,14 @@ final class ExpandDoseEventsHandler
         /** @var array<string, string> $affectedProfiles */
         $affectedProfiles = [];
         $created = 0;
+        $scanned = 0;
 
         foreach ($schedules as $schedule) {
+            if ($schedule->isCancelled()) {
+                continue;
+            }
+
+            ++$scanned;
             $profileId = null;
             $timezone = new \DateTimeZone('UTC');
             $medication = $this->medicationRepository->findById($schedule->medicationId());
@@ -52,22 +56,7 @@ final class ExpandDoseEventsHandler
                 }
             }
 
-            $occurrences = $this->doseEventExpander->expand($schedule, $now, $to, $timezone);
-            $existing = $this->doseEventRepository->findByScheduleIdsAndRange([$schedule->id()], $now, $to);
-            $existingTimes = array_map(
-                static fn ($event) => $event->scheduledAt()->format(\DateTimeInterface::ATOM),
-                $existing
-            );
-
-            $newCount = 0;
-            foreach ($occurrences as $occurrence) {
-                $formattedTime = $occurrence->scheduledAt()->format(\DateTimeInterface::ATOM);
-                if (!in_array($formattedTime, $existingTimes, true)) {
-                    $this->doseEventRepository->save($occurrence);
-                    ++$newCount;
-                }
-            }
-
+            $newCount = $this->materializeUpcomingOccurrences->materialize($schedule, $timezone, $now, $to);
             $created += $newCount;
 
             if ($newCount > 0 && $profileId !== null) {
@@ -80,7 +69,7 @@ final class ExpandDoseEventsHandler
         }
 
         return Result::success([
-            'schedulesScanned' => count($schedules),
+            'schedulesScanned' => $scanned,
             'doseEventsCreated' => $created,
             'profilesQueuedForCalendarSync' => count($affectedProfiles),
         ]);

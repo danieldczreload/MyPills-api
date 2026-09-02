@@ -63,6 +63,7 @@ final class CancelRecurringNotificationsHandlerTest extends TestCase
         $schedRepo = $this->createMock(ScheduleRepository::class);
         $schedRepo->method('findById')->with($scheduleId)->willReturn($schedule);
         $schedRepo->expects(self::once())->method('delete')->with($schedule);
+        $schedRepo->expects(self::never())->method('save');
 
         $doseRepo = $this->createMock(DoseEventRepository::class);
         $doseRepo->method('findPendingByScheduleIds')->with([$scheduleId])->willReturn([$dose1, $dose2]);
@@ -161,6 +162,9 @@ final class CancelRecurringNotificationsHandlerTest extends TestCase
         $medicationRepo->method('findById')->willReturn($medication);
         $schedRepo = $this->createMock(ScheduleRepository::class);
         $schedRepo->method('findById')->willReturn($schedule);
+        $schedRepo->expects(self::once())->method('save')->with(self::callback(static function ($saved): bool {
+            return $saved instanceof DailySchedule && $saved->isCancelled();
+        }));
         $doseRepo = $this->createMock(DoseEventRepository::class);
         $doseRepo->method('findPendingByScheduleIds')->willReturn([$dose1]);
         $doseRepo->expects(self::once())->method('save')->with(self::callback(static function (DoseEvent $dose): bool {
