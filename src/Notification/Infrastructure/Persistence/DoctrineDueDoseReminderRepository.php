@@ -9,6 +9,7 @@ use DoseEvent\Infrastructure\Persistence\DoseEventDoctrineEntity;
 use Medication\Infrastructure\Persistence\MedicationDoctrineEntity;
 use Notification\Domain\DueDoseReminder;
 use Notification\Domain\DueDoseReminderRepository;
+use Notification\Domain\ReminderDispatchPolicy;
 use Profile\Infrastructure\Persistence\PatientProfileDoctrineEntity;
 use Schedule\Infrastructure\Persistence\ScheduleDoctrineEntity;
 use Shared\Domain\ValueObject\Dose;
@@ -27,8 +28,7 @@ final class DoctrineDueDoseReminderRepository implements DueDoseReminderReposito
      */
     public function findDueDoseReminders(\DateTimeImmutable $now): array
     {
-        // Maximum anticipation supported is 15 minutes. We query all pending un-notified doses up to now + 15 min.
-        $maxWindow = $now->modify('+15 minutes');
+        [$minWindow, $maxWindow] = ReminderDispatchPolicy::queryWindow($now);
 
         $dql = '
             SELECT 
@@ -48,12 +48,14 @@ final class DoctrineDueDoseReminderRepository implements DueDoseReminderReposito
             LEFT JOIN ' . NotificationPreferencesDoctrineEntity::class . ' np ON p.accountId = np.accountId
             WHERE d.status = :pendingStatus
               AND d.reminderSentAt IS NULL
+              AND d.scheduledAt >= :minWindow
               AND d.scheduledAt <= :maxWindow
             ORDER BY d.scheduledAt ASC
         ';
 
         $query = $this->entityManager->createQuery($dql);
         $query->setParameter('pendingStatus', 'pending');
+        $query->setParameter('minWindow', $minWindow);
         $query->setParameter('maxWindow', $maxWindow);
 
         /** @var array<int, array{
@@ -73,10 +75,8 @@ final class DoctrineDueDoseReminderRepository implements DueDoseReminderReposito
 
         foreach ($rows as $row) {
             $minutesBefore = $row['reminder_minutes_before'] ?? 0;
-            $fireAt = $row['scheduled_at']->modify(sprintf('-%d minutes', $minutesBefore));
 
-            // Only include if the trigger time has arrived (fireAt <= now)
-            if ($fireAt <= $now) {
+            if (ReminderDispatchPolicy::isDue($row['scheduled_at'], $minutesBefore, $now)) {
                 $dueReminders[] = new DueDoseReminder(
                     new DoseEventId($row['dose_id']),
                     new UserId($row['account_id']),

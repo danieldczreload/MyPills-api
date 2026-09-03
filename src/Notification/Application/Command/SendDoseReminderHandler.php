@@ -8,6 +8,7 @@ use DoseEvent\Domain\DoseEventRepository;
 use Notification\Domain\DeviceTokenRepository;
 use Notification\Domain\InvalidDeviceToken;
 use Notification\Domain\PushNotificationGateway;
+use Psr\Log\LoggerInterface;
 use Shared\Domain\Result;
 use Shared\Domain\ValueObject\Dose;
 use Shared\Domain\ValueObject\DoseEventId;
@@ -20,7 +21,8 @@ final class SendDoseReminderHandler
     public function __construct(
         private readonly DoseEventRepository $doseEventRepository,
         private readonly DeviceTokenRepository $deviceTokenRepository,
-        private readonly PushNotificationGateway $pushNotificationGateway
+        private readonly PushNotificationGateway $pushNotificationGateway,
+        private readonly LoggerInterface $logger
     ) {
     }
 
@@ -76,12 +78,30 @@ final class SendDoseReminderHandler
                     $payload
                 );
                 ++$sent;
-            } catch (InvalidDeviceToken) {
+            } catch (InvalidDeviceToken $exception) {
                 $this->deviceTokenRepository->delete($device);
                 ++$failed;
-            } catch (\Throwable) {
+                $this->logger->warning('Removed invalid FCM device token while sending a dose reminder.', [
+                    'doseEventId' => $command->doseEventId,
+                    'exception' => $exception->getMessage(),
+                ]);
+            } catch (\Throwable $exception) {
                 ++$failed;
+                $this->logger->error('Failed to send dose reminder push notification.', [
+                    'doseEventId' => $command->doseEventId,
+                    'exception' => $exception->getMessage(),
+                ]);
             }
+        }
+
+        if ($sent === 0) {
+            $this->logger->warning('Dose reminder was not marked sent because no push was delivered.', [
+                'doseEventId' => $command->doseEventId,
+                'failed' => $failed,
+                'deviceCount' => count($devices),
+            ]);
+
+            return Result::success(['sent' => 0, 'failed' => $failed, 'retry' => true]);
         }
 
         $doseEvent->markReminderSent(new \DateTimeImmutable());

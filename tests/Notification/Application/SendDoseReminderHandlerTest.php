@@ -12,6 +12,7 @@ use Notification\Domain\DeviceToken;
 use Notification\Domain\DeviceTokenRepository;
 use Notification\Domain\PushNotificationGateway;
 use PHPUnit\Framework\TestCase;
+use Psr\Log\LoggerInterface;
 use Shared\Domain\ValueObject\Dose;
 use Shared\Domain\ValueObject\DoseEventId;
 use Shared\Domain\ValueObject\MedicationId;
@@ -56,7 +57,12 @@ final class SendDoseReminderHandlerTest extends TestCase
             })
         );
 
-        $handler = new SendDoseReminderHandler($doseRepo, $deviceRepo, $gateway);
+        $handler = new SendDoseReminderHandler(
+            $doseRepo,
+            $deviceRepo,
+            $gateway,
+            $this->createMock(LoggerInterface::class)
+        );
         $result = $handler(new SendDoseReminderCommand(
             $doseId->value(),
             $accountId->value(),
@@ -94,7 +100,12 @@ final class SendDoseReminderHandlerTest extends TestCase
         $gateway = $this->createMock(PushNotificationGateway::class);
         $gateway->expects(self::never())->method('send');
 
-        $handler = new SendDoseReminderHandler($doseRepo, $deviceRepo, $gateway);
+        $handler = new SendDoseReminderHandler(
+            $doseRepo,
+            $deviceRepo,
+            $gateway,
+            $this->createMock(LoggerInterface::class)
+        );
         $result = $handler(new SendDoseReminderCommand(
             $doseId->value(),
             '00000000-0000-0000-0000-000000000002',
@@ -111,5 +122,98 @@ final class SendDoseReminderHandlerTest extends TestCase
         $data = $result->getValue();
         self::assertSame(0, $data['sent']);
         self::assertTrue($data['skipped'] ?? false);
+    }
+
+    public function testDoesNotMarkSentWhenNoDevicesAreRegistered(): void
+    {
+        $doseId = new DoseEventId('00000000-0000-0000-0000-000000000001');
+        $dose = DoseEvent::create(
+            $doseId,
+            new MedicationId('00000000-0000-0000-0000-000000000003'),
+            new ScheduleId('00000000-0000-0000-0000-000000000004'),
+            new \DateTimeImmutable('+10 minutes')
+        );
+
+        $doseRepo = $this->createMock(DoseEventRepository::class);
+        $doseRepo->method('findById')->with($doseId)->willReturn($dose);
+        $doseRepo->expects(self::never())->method('save');
+
+        $deviceRepo = $this->createMock(DeviceTokenRepository::class);
+        $deviceRepo->method('findByAccountId')->willReturn([]);
+
+        $gateway = $this->createMock(PushNotificationGateway::class);
+        $gateway->expects(self::never())->method('send');
+
+        $handler = new SendDoseReminderHandler(
+            $doseRepo,
+            $deviceRepo,
+            $gateway,
+            $this->createMock(LoggerInterface::class)
+        );
+        $result = $handler(new SendDoseReminderCommand(
+            $doseId->value(),
+            '00000000-0000-0000-0000-000000000002',
+            'Ibuprofeno',
+            Dose::of(400, 'mg'),
+            $dose->scheduledAt(),
+            0,
+            true,
+            true
+        ));
+
+        self::assertTrue($result->isSuccess());
+        /** @var array<string, mixed> $data */
+        $data = $result->getValue();
+        self::assertSame(0, $data['sent']);
+        self::assertTrue($data['retry'] ?? false);
+        self::assertNull($dose->reminderSentAt());
+    }
+
+    public function testDoesNotMarkSentWhenEveryPushFails(): void
+    {
+        $doseId = new DoseEventId('00000000-0000-0000-0000-000000000001');
+        $accountId = new UserId('00000000-0000-0000-0000-000000000002');
+        $dose = DoseEvent::create(
+            $doseId,
+            new MedicationId('00000000-0000-0000-0000-000000000003'),
+            new ScheduleId('00000000-0000-0000-0000-000000000004'),
+            new \DateTimeImmutable('+10 minutes')
+        );
+
+        $doseRepo = $this->createMock(DoseEventRepository::class);
+        $doseRepo->method('findById')->with($doseId)->willReturn($dose);
+        $doseRepo->expects(self::never())->method('save');
+
+        $device = DeviceToken::create($accountId, 'test-fcm-token', 'android', 'es');
+        $deviceRepo = $this->createMock(DeviceTokenRepository::class);
+        $deviceRepo->method('findByAccountId')->willReturn([$device]);
+
+        $gateway = $this->createMock(PushNotificationGateway::class);
+        $gateway->method('send')->willThrowException(new \RuntimeException('FCM down'));
+
+        $handler = new SendDoseReminderHandler(
+            $doseRepo,
+            $deviceRepo,
+            $gateway,
+            $this->createMock(LoggerInterface::class)
+        );
+        $result = $handler(new SendDoseReminderCommand(
+            $doseId->value(),
+            $accountId->value(),
+            'Ibuprofeno',
+            Dose::of(400, 'mg'),
+            $dose->scheduledAt(),
+            0,
+            true,
+            true
+        ));
+
+        self::assertTrue($result->isSuccess());
+        /** @var array<string, mixed> $data */
+        $data = $result->getValue();
+        self::assertSame(0, $data['sent']);
+        self::assertSame(1, $data['failed']);
+        self::assertTrue($data['retry'] ?? false);
+        self::assertNull($dose->reminderSentAt());
     }
 }
