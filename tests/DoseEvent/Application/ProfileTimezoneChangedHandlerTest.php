@@ -41,7 +41,7 @@ final class ProfileTimezoneChangedHandlerTest extends TestCase
 
         $medicationRepo = $this->createMock(MedicationRepository::class);
         $medicationRepo->method('findByProfileId')->willReturn([
-            new Medication($medicationId, $profileId, 'Aspirin', '100mg', null, null, null, new \DateTimeImmutable(), new \DateTimeImmutable()),
+            Medication::create($medicationId, $profileId, 'Aspirin'),
         ]);
         $scheduleRepo = $this->createMock(ScheduleRepository::class);
         $scheduleRepo->method('findByMedicationIds')->willReturn([$schedule]);
@@ -85,7 +85,7 @@ final class ProfileTimezoneChangedHandlerTest extends TestCase
 
         $medicationRepo = $this->createMock(MedicationRepository::class);
         $medicationRepo->method('findByProfileId')->willReturn([
-            new Medication($medicationId, $profileId, 'Aspirin', '100mg', null, null, null, new \DateTimeImmutable(), new \DateTimeImmutable()),
+            Medication::create($medicationId, $profileId, 'Aspirin'),
         ]);
         $scheduleRepo = $this->createMock(ScheduleRepository::class);
         $scheduleRepo->method('findByMedicationIds')->willReturn([$schedule]);

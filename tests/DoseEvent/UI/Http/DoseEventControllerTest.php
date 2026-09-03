@@ -228,7 +228,6 @@ final class DoseEventControllerTest extends WebTestCase
             $headers,
             $this->encode([
                 'name' => 'Aspirin',
-                'dosage' => '100mg',
             ])
         );
         self::assertSame(Response::HTTP_CREATED, $client->getResponse()->getStatusCode());
@@ -246,6 +245,8 @@ final class DoseEventControllerTest extends WebTestCase
                 'startDate' => $start->format('Y-m-d'),
                 'endDate' => $end->format('Y-m-d'),
                 'timesOfDay' => [['hour' => 16, 'minute' => 25]],
+                'doseAmount' => 100,
+                'doseUnit' => 'mg',
             ])
         );
         self::assertSame(Response::HTTP_CREATED, $client->getResponse()->getStatusCode());

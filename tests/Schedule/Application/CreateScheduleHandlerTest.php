@@ -222,7 +222,7 @@ final class CreateScheduleHandlerTest extends TestCase
         );
         $this->profileRepo->method('findById')->willReturn($profile);
 
-        $medication = new Medication(new MedicationId('med-1'), new ProfileId('prof-1'), 'Name', '10mg', 'pill', 'instr', null, new \DateTimeImmutable(), new \DateTimeImmutable());
+        $medication = new Medication(new MedicationId('med-1'), new ProfileId('prof-1'), 'Name', 'pill', 'instr', null, new \DateTimeImmutable(), new \DateTimeImmutable());
         $this->medicationRepo->method('findById')->willReturn($medication);
 
         $this->scheduleRepo->expects(self::once())->method('save')->with(self::callback(
@@ -245,6 +245,8 @@ final class CreateScheduleHandlerTest extends TestCase
             'med-1',
             'daily',
             new \DateTimeImmutable('2026-08-28'),
+            '500',
+            'mg',
             new \DateTimeImmutable('2026-08-30'),
             [['hour' => 16, 'minute' => 25]]
         );

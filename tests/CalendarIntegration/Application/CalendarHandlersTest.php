@@ -248,10 +248,10 @@ final class CalendarHandlersTest extends TestCase
         $linkRepo->method('findByProfile')->willReturn([$link]);
 
         $medId = new MedicationId('med-1');
-        $med = new Medication($medId, new ProfileId('prof-1'), 'Aspirin', '100mg', 'pill', 'instructions', null, new \DateTimeImmutable(), new \DateTimeImmutable());
+        $med = Medication::create($medId, new ProfileId('prof-1'), 'Aspirin', 'instructions');
         $medRepo->method('findByProfileId')->willReturn([$med]);
 
-        $sched = new DailySchedule(new ScheduleId('sch-1'), $medId, [new TimeOfDay(16, 25)], new \DateTimeImmutable(), null, null, new \DateTimeImmutable(), new \DateTimeImmutable());
+        $sched = new DailySchedule(new ScheduleId('sch-1'), $medId, [new TimeOfDay(16, 25)], new \DateTimeImmutable(), null, null, new \DateTimeImmutable(), new \DateTimeImmutable(), \Shared\Domain\ValueObject\Dose::of('100', 'mg'));
         $schedRepo->method('findByMedicationIds')->willReturn([$sched]);
 
         $dose = DoseEvent::create(new DoseEventId('dose-1'), $medId, new ScheduleId('sch-1'), new \DateTimeImmutable('2026-08-29T22:25:00+00:00'));
@@ -262,7 +262,7 @@ final class CalendarHandlersTest extends TestCase
             ->method('upsertEvent')
             ->with(
                 'access-1',
-                'Take Medication: Aspirin (100mg)',
+                'Take Medication: Aspirin (100 mg)',
                 self::callback(static function (\DateTimeImmutable $start): bool {
                     return $start->format('Y-m-d\TH:i:sP') === '2026-08-29T16:25:00-06:00'
                         && $start->getTimezone()->getName() === 'America/El_Salvador';

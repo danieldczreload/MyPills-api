@@ -61,16 +61,10 @@ final class ExpandDoseEventsHandlerTest extends TestCase
         $doseEventRepo->method('findByScheduleIdsAndRange')->willReturn([]);
         $doseEventRepo->expects(self::atLeastOnce())->method('save');
 
-        $medicationRepo->method('findById')->willReturn(new Medication(
+        $medicationRepo->method('findById')->willReturn(Medication::create(
             $medicationId,
             new ProfileId('prof-1'),
-            'Aspirin',
-            '100mg',
-            null,
-            null,
-            null,
-            new \DateTimeImmutable(),
-            new \DateTimeImmutable()
+            'Aspirin'
         ));
         $profileRepo->method('findById')->willReturn(new PatientProfile(
             new ProfileId('prof-1'),
@@ -141,16 +135,10 @@ final class ExpandDoseEventsHandlerTest extends TestCase
         $doseEventRepo->method('findByScheduleIdsAndRange')->willReturn($existing);
         $doseEventRepo->expects(self::never())->method('save');
 
-        $medicationRepo->method('findById')->willReturn(new Medication(
+        $medicationRepo->method('findById')->willReturn(Medication::create(
             $medicationId,
             new ProfileId('prof-1'),
-            'Aspirin',
-            '100mg',
-            null,
-            null,
-            null,
-            new \DateTimeImmutable(),
-            new \DateTimeImmutable()
+            'Aspirin'
         ));
         $profileRepo->method('findById')->willReturn(new PatientProfile(
             new ProfileId('prof-1'),
@@ -238,16 +226,10 @@ final class ExpandDoseEventsHandlerTest extends TestCase
         $eventBus->expects(self::never())->method('publish');
 
         $medicationRepo = $this->createMock(MedicationRepository::class);
-        $medicationRepo->method('findById')->willReturn(new Medication(
+        $medicationRepo->method('findById')->willReturn(Medication::create(
             $medicationId,
             new ProfileId('prof-1'),
-            'Aspirin',
-            '100mg',
-            null,
-            null,
-            null,
-            new \DateTimeImmutable(),
-            new \DateTimeImmutable()
+            'Aspirin'
         ));
         $profileRepo = $this->createMock(ProfileRepository::class);
         $profileRepo->method('findById')->willReturn(new PatientProfile(
