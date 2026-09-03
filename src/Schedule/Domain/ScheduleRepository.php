@@ -24,6 +24,11 @@ interface ScheduleRepository
      */
     public function findByMedicationIds(array $medicationIds): array;
 
+    /**
+     * @return Schedule[]
+     */
+    public function findAll(): array;
+
     public function findByClientId(string $clientId): ?Schedule;
 
     public function delete(Schedule $schedule): void;

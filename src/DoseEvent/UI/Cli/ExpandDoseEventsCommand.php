@@ -4,11 +4,8 @@ declare(strict_types=1);
 
 namespace DoseEvent\UI\Cli;
 
-use DoseEvent\Domain\DoseEventRepository;
-use DoseEvent\Domain\DoseEventExpander;
-use Doctrine\ORM\EntityManagerInterface;
-use Schedule\Infrastructure\Persistence\ScheduleDoctrineEntity;
-use Schedule\Domain\ScheduleRepository;
+use DoseEvent\Application\Command\ExpandDoseEventsCommand as ExpandDoseEvents;
+use Shared\Application\Bus\CommandBus;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
@@ -21,10 +18,7 @@ use Symfony\Component\Console\Output\OutputInterface;
 final class ExpandDoseEventsCommand extends Command
 {
     public function __construct(
-        private readonly EntityManagerInterface $entityManager,
-        private readonly ScheduleRepository $scheduleRepository,
-        private readonly DoseEventRepository $doseEventRepository,
-        private readonly DoseEventExpander $doseEventExpander
+        private readonly CommandBus $commandBus
     ) {
         parent::__construct();
     }
@@ -33,37 +27,22 @@ final class ExpandDoseEventsCommand extends Command
     {
         $output->writeln('Starting DoseEvent expansion...');
 
-        // Fetch all schedules
-        $scheduleEntities = $this->entityManager->getRepository(ScheduleDoctrineEntity::class)->findAll();
-        $output->writeln(sprintf('Found %d schedules.', count($scheduleEntities)));
+        $result = $this->commandBus->dispatch(new ExpandDoseEvents());
 
-        $now = new \DateTimeImmutable();
-        $to = $now->modify('+14 days');
+        if ($result->isFailure()) {
+            $output->writeln(sprintf('<error>Failed to expand dose events: %s</error>', $result->getFailure()->getMessage()));
 
-        foreach ($scheduleEntities as $entity) {
-            $schedule = $this->scheduleRepository->findById(new \Shared\Domain\ValueObject\ScheduleId($entity->getId()));
-            if ($schedule === null) {
-                continue;
-            }
-
-            $occurrences = $this->doseEventExpander->expand($schedule, $now, $to);
-            $existing = $this->doseEventRepository->findByScheduleIdsAndRange([$schedule->id()], $now, $to);
-            $existingTimes = array_map(static fn ($e) => $e->scheduledAt()->format(\DateTimeInterface::ATOM), $existing);
-
-            $newCount = 0;
-            foreach ($occurrences as $occurrence) {
-                $formattedTime = $occurrence->scheduledAt()->format(\DateTimeInterface::ATOM);
-                if (!in_array($formattedTime, $existingTimes, true)) {
-                    $this->doseEventRepository->save($occurrence);
-                    $newCount++;
-                }
-            }
-
-            if ($newCount > 0) {
-                $output->writeln(sprintf('  Schedule %s: Created %d new dose events.', $schedule->id()->value(), $newCount));
-            }
+            return Command::FAILURE;
         }
 
+        /** @var array{schedulesScanned: int, doseEventsCreated: int, profilesQueuedForCalendarSync: int} $data */
+        $data = $result->getValue();
+        $output->writeln(sprintf('Found %d schedules.', $data['schedulesScanned']));
+        $output->writeln(sprintf(
+            '<info>Created %d dose event(s); queued calendar sync for %d profile(s).</info>',
+            $data['doseEventsCreated'],
+            $data['profilesQueuedForCalendarSync']
+        ));
         $output->writeln('DoseEvent expansion complete.');
 
         return Command::SUCCESS;

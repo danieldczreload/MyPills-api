@@ -154,9 +154,12 @@ Fields:
   "name": "string",
   "birthDate": "2000-01-15",
   "gender": "string",
-  "photoUrl": "https://..."
+  "photoUrl": "https://...",
+  "timezone": "America/El_Salvador"
 }
 ```
+
+`timezone` is an IANA identifier. Omit it and the backend stores `UTC`. See [Timezone and Scheduling Requirement](#9-timezone-and-scheduling-requirement).
 
 ### Medications
 
@@ -250,6 +253,8 @@ POST /api/v1/devices
   "locale": "es-MX"
 }
 ```
+
+`platform` must be `android` or `ios`. Send BCP-47 `locale` (`es-MX` or `es-SV`). Flutter `Locale.toString()` (`es_MX`) is accepted and stored as `es-MX`.
 
 4. Re-register when Firebase rotates the token.
 5. Delete the registration on logout when the user is still authenticated:
@@ -421,11 +426,23 @@ Each dose event becomes one calendar event:
 
 The client must not mirror or edit these events locally; the backend is the only writer.
 
+To remove a calendar event, call the cancel endpoints (`cancelCalendar` defaults to `true`). Flutter does not store Google/Microsoft event IDs; the backend looks them up in `calendar_event_mappings`. Routes: `docs/api-endpoints.md` § Cancel.
+
 ## 9. Timezone and Scheduling Requirement
 
-The client must always know the device/profile IANA timezone, for example `America/Mexico_City`.
+Profiles already expose `timezone` on `POST/PATCH /profiles` and in profile responses. Send an IANA identifier (`America/El_Salvador`, `America/Mexico_City`), never an abbreviation (`CST`) or a raw offset.
 
-The backend currently lacks an explicit profile timezone contract. Before production scheduling, add a timezone field and send it from Flutter. Without it, daylight-saving changes and travel can produce incorrect dose times.
+Intended contract:
+
+| Field | Meaning |
+|-------|---------|
+| `timezone` on the profile | IANA zone. Default `UTC` if omitted. |
+| `timesOfDay` / `startAt` / `endAt` | Local wall-clock time in that zone. Do not pre-convert to UTC. |
+| `startDate` / `endDate` | Calendar dates (`YYYY-MM-DD`) in the profile timezone, not instants. |
+
+Obtain the zone with `flutter_timezone` (or equivalent), not `DateTime.timeZoneName` (that often returns `CST`).
+
+On this branch the field is stored and returned, but schedule expansion does **not** yet interpret `timesOfDay` in the profile zone (it still treats them as UTC). Send the IANA value now so expansion can honor it once enabled. Until then, DST and travel can still produce incorrect dose instants.
 
 ## 10. Acceptance Criteria
 
@@ -446,8 +463,7 @@ The Flutter client is ready for release when:
 ## 11. Backend Gaps Before Flutter Production
 
 - Add own-authentication endpoints and disable legacy social-login routes.
-- Add `GET /notifications/preferences`.
-- Add profile timezone support.
+- Use the profile IANA timezone when expanding schedules (the field exists; expansion on this branch still treats `timesOfDay` as UTC).
 - Define notification payload and deep-link schema.
 - Move calendar synchronization and push delivery to asynchronous jobs with retry/outbox handling.
 - Rotate the OAuth and token-vault credentials independently for staging and production.

@@ -36,7 +36,8 @@ final class RegisterDeviceHandler
             return Result::failure(Failure::validation('platform must be android or ios.'));
         }
 
-        if (!preg_match('/^[a-z]{2}(?:-[A-Z]{2})?$/', $command->locale)) {
+        $locale = DeviceToken::canonicalizeLocale($command->locale);
+        if ($locale === null) {
             return Result::failure(Failure::validation('locale must use a valid locale such as es-MX.'));
         }
 
@@ -44,8 +45,8 @@ final class RegisterDeviceHandler
 
         if ($existing !== null) {
             if ($existing->accountId()->value() === $command->accountId) {
-                if ($existing->platform() !== $command->platform || $existing->locale() !== $command->locale) {
-                    $existing->updateMetadata($command->platform, $command->locale);
+                if ($existing->platform() !== $command->platform || $existing->locale() !== $locale) {
+                    $existing->updateMetadata($command->platform, $locale);
                     $this->deviceTokenRepository->save($existing);
                 }
 
@@ -62,7 +63,7 @@ final class RegisterDeviceHandler
             new UserId($command->accountId),
             $command->fcmToken,
             $command->platform,
-            $command->locale
+            $locale
         );
 
         $this->deviceTokenRepository->save($deviceToken);

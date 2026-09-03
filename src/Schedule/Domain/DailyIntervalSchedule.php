@@ -22,9 +22,10 @@ final class DailyIntervalSchedule extends Schedule
         ?string $clientId,
         \DateTimeImmutable $createdAt,
         \DateTimeImmutable $updatedAt,
-        ?Dose $dose = null
+        ?Dose $dose = null,
+        ?\DateTimeImmutable $cancelledAt = null
     ) {
-        parent::__construct($id, $medicationId, $startDate, $endDate, $clientId, $createdAt, $updatedAt, $dose);
+        parent::__construct($id, $medicationId, $startDate, $endDate, $clientId, $createdAt, $updatedAt, $dose, $cancelledAt);
         if ($this->everyHours <= 0) {
             throw new \InvalidArgumentException('everyHours must be positive.');
         }

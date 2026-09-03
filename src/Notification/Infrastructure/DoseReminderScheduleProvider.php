@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Notification\Infrastructure;
 
+use DoseEvent\Application\Command\ExpandDoseEventsCommand;
 use Notification\Application\Command\DispatchDueRemindersCommand;
 use Symfony\Component\Scheduler\Attribute\AsSchedule;
 use Symfony\Component\Scheduler\RecurringMessage;
@@ -15,8 +16,8 @@ final class DoseReminderScheduleProvider implements ScheduleProviderInterface
 {
     public function getSchedule(): Schedule
     {
-        return (new Schedule())->add(
-            RecurringMessage::every('60 seconds', new DispatchDueRemindersCommand())
-        );
+        return (new Schedule())
+            ->add(RecurringMessage::every('60 seconds', new DispatchDueRemindersCommand()))
+            ->add(RecurringMessage::every('1 hour', new ExpandDoseEventsCommand()));
     }
 }

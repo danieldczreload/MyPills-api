@@ -14,6 +14,7 @@ use CalendarIntegration\Domain\CalendarLinkStatus;
 use DoseEvent\Domain\DoseEventRepository;
 use Medication\Domain\MedicationRepository;
 use Profile\Domain\ProfileRepository;
+use Profile\Domain\ValueObject\Timezone;
 use Schedule\Domain\ScheduleRepository;
 use Shared\Domain\Result;
 use Shared\Domain\Failure;
@@ -116,6 +117,7 @@ final class SyncCalendarHandler
                     $doseEvents,
                     $medicationMap,
                     $scheduleMap,
+                    $profile->timezone(),
                     $eventsCreated,
                     $eventsUpdated
                 );
@@ -157,7 +159,7 @@ final class SyncCalendarHandler
      *
      * @return array{provider: string, reason: string, detail?: string}|null Per-link failure detail, null on success.
      */
-    private function syncLink(CalendarLink $link, array $doseEvents, array $medicationMap, array $scheduleMap, int &$eventsCreated, int &$eventsUpdated): ?array
+    private function syncLink(CalendarLink $link, array $doseEvents, array $medicationMap, array $scheduleMap, string $timeZone, int &$eventsCreated, int &$eventsUpdated): ?array
     {
         try {
             $gateway = $this->providerResolver->resolveString($link->provider());
@@ -210,20 +212,21 @@ final class SyncCalendarHandler
             $title = $doseDisplay !== null
                 ? sprintf('Take Medication: %s (%s)', $med->name(), $doseDisplay)
                 : sprintf('Take Medication: %s', $med->name());
-            $description = sprintf(
-                "Instructions: %s\nStatus: %s\nScheduled At: %s",
-                $med->instructions() ?? 'None',
-                ucfirst($event->status()),
-                $event->scheduledAt()->format(\DateTimeInterface::ATOM)
-            );
-
-            $start = $event->scheduledAt();
-            $end = $start->modify('+30 minutes');
-
             $mappingKey = $event->id()->value() . ':' . $link->provider();
             $mapping = $mappings[$mappingKey] ?? null;
 
             try {
+                $zone = Timezone::dateTimeZoneOrUtc($timeZone);
+                $scheduledAt = $event->scheduledAt()->setTimezone($zone);
+                $description = sprintf(
+                    "Instructions: %s\nStatus: %s\nScheduled At: %s",
+                    $med->instructions() ?? 'None',
+                    ucfirst($event->status()),
+                    $scheduledAt->format(\DateTimeInterface::ATOM)
+                );
+
+                $start = $scheduledAt;
+                $end = $start->modify('+30 minutes');
                 $externalEventId = $gateway->upsertEvent(
                     $tokens->accessToken(),
                     $title,
@@ -231,7 +234,8 @@ final class SyncCalendarHandler
                     $end,
                     $description,
                     $mapping?->externalEventId(),
-                    self::idempotencyKey($event->id()->value(), $link->provider())
+                    self::idempotencyKey($event->id()->value(), $link->provider()),
+                    $zone->getName()
                 );
             } catch (\Throwable $exception) {
                 return [

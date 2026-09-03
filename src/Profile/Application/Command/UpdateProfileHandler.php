@@ -5,8 +5,11 @@ declare(strict_types=1);
 namespace Profile\Application\Command;
 
 use Profile\Domain\ProfileRepository;
-use Shared\Domain\Result;
+use Profile\Domain\ProfileTimezoneChangedEvent;
+use Profile\Domain\ValueObject\Timezone;
+use Shared\Application\Bus\EventBus;
 use Shared\Domain\Failure;
+use Shared\Domain\Result;
 use Shared\Domain\ValueObject\ProfileId;
 use Symfony\Component\Messenger\Attribute\AsMessageHandler;
 
@@ -14,7 +17,8 @@ use Symfony\Component\Messenger\Attribute\AsMessageHandler;
 final class UpdateProfileHandler
 {
     public function __construct(
-        private readonly ProfileRepository $profileRepository
+        private readonly ProfileRepository $profileRepository,
+        private readonly EventBus $eventBus
     ) {
     }
 
@@ -38,14 +42,32 @@ final class UpdateProfileHandler
             return Result::failure(Failure::validation('Profile name cannot be empty.'));
         }
 
+        $previousTimezone = $profile->timezone();
+        $timezone = $previousTimezone;
+        if ($command->timezone !== null) {
+            $parsed = Timezone::tryParse($command->timezone);
+            if ($parsed === null) {
+                return Result::failure(Failure::validation(sprintf('Timezone "%s" is not a valid IANA identifier.', $command->timezone)));
+            }
+            $timezone = $parsed->value();
+        }
+
         $profile->update(
             $command->name,
             $command->birthDate,
             $command->gender,
             $command->photoUrl,
-            $command->timezone
+            $timezone
         );
         $this->profileRepository->save($profile);
+
+        if ($timezone !== $previousTimezone) {
+            $this->eventBus->publish(new ProfileTimezoneChangedEvent(
+                $profile->id()->value(),
+                $previousTimezone,
+                $timezone
+            ));
+        }
 
         return Result::success([
             'id' => $profile->id()->value(),

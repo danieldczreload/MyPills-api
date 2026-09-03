@@ -94,6 +94,8 @@ final class DoctrineScheduleRepository implements ScheduleRepository
             $entity->setUpdatedAt($schedule->updatedAt());
         }
 
+        $entity->setCancelledAt($schedule->cancelledAt());
+
         $this->entityManager->flush();
     }
 
@@ -132,6 +134,16 @@ final class DoctrineScheduleRepository implements ScheduleRepository
 
         $entities = $this->entityManager->getRepository(ScheduleDoctrineEntity::class)
             ->findBy(['medicationId' => $ids]);
+
+        return array_map($this->mapToDomain(...), $entities);
+    }
+
+    /**
+     * @return Schedule[]
+     */
+    public function findAll(): array
+    {
+        $entities = $this->entityManager->getRepository(ScheduleDoctrineEntity::class)->findAll();
 
         return array_map($this->mapToDomain(...), $entities);
     }
@@ -177,7 +189,8 @@ final class DoctrineScheduleRepository implements ScheduleRepository
                 $entity->getClientId(),
                 $entity->getCreatedAt(),
                 $entity->getUpdatedAt(),
-                $dose
+                $dose,
+                $entity->getCancelledAt()
             );
         }
 
@@ -197,7 +210,8 @@ final class DoctrineScheduleRepository implements ScheduleRepository
                 $entity->getClientId(),
                 $entity->getCreatedAt(),
                 $entity->getUpdatedAt(),
-                $dose
+                $dose,
+                $entity->getCancelledAt()
             );
         }
 
@@ -217,7 +231,8 @@ final class DoctrineScheduleRepository implements ScheduleRepository
                 $entity->getClientId(),
                 $entity->getCreatedAt(),
                 $entity->getUpdatedAt(),
-                $dose
+                $dose,
+                $entity->getCancelledAt()
             );
         }
 

@@ -4,10 +4,8 @@ declare(strict_types=1);
 
 namespace Notification\Application\Command;
 
-use CalendarIntegration\Application\CalendarProviderResolver;
+use CalendarIntegration\Application\CalendarEventRemover;
 use CalendarIntegration\Domain\CalendarEventMappingRepository;
-use CalendarIntegration\Domain\CalendarLinkRepository;
-use CalendarIntegration\Domain\CalendarLinkStatus;
 use DoseEvent\Domain\DoseEventRepository;
 use Medication\Domain\MedicationRepository;
 use Notification\Domain\DeviceTokenRepository;
@@ -15,7 +13,6 @@ use Notification\Domain\PushNotificationGateway;
 use Profile\Domain\ProfileRepository;
 use Shared\Domain\Failure;
 use Shared\Domain\Result;
-use Shared\Domain\TokenVault;
 use Shared\Domain\ValueObject\DoseEventId;
 use Shared\Domain\ValueObject\ProfileId;
 use Shared\Domain\ValueObject\UserId;
@@ -30,10 +27,8 @@ final class CancelNotificationHandler
         private readonly DoseEventRepository $doseEventRepository,
         private readonly DeviceTokenRepository $deviceTokenRepository,
         private readonly PushNotificationGateway $pushNotificationGateway,
-        private readonly CalendarLinkRepository $calendarLinkRepository,
         private readonly CalendarEventMappingRepository $mappingRepository,
-        private readonly CalendarProviderResolver $providerResolver,
-        private readonly TokenVault $tokenVault
+        private readonly CalendarEventRemover $calendarEventRemover
     ) {
     }
 
@@ -103,21 +98,7 @@ final class CancelNotificationHandler
         $calendarEventsDeleted = 0;
         if ($command->cancelCalendar) {
             $mappings = $this->mappingRepository->findByDoseEventId($command->doseEventId);
-            foreach ($mappings as $mapping) {
-                $link = $this->calendarLinkRepository->findByProfileAndProvider($profileId, $mapping->provider());
-                if ($link !== null && $link->status() !== CalendarLinkStatus::REAUTH_REQUIRED) {
-                    try {
-                        $gateway = $this->providerResolver->resolveString($mapping->provider());
-                        $tokens = $gateway->refreshAccessToken($this->tokenVault->decrypt($link->encryptedRefreshToken()));
-                        $gateway->deleteEvent($tokens->accessToken(), $mapping->externalEventId());
-                        ++$calendarEventsDeleted;
-                    } catch (\Throwable) {
-                        // Silently continue on individual calendar failure
-                    }
-                }
-                $this->mappingRepository->delete($mapping);
-            }
-            $this->mappingRepository->flush();
+            $calendarEventsDeleted = $this->calendarEventRemover->remove($profileId, $mappings);
         }
 
         return Result::success([

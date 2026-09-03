@@ -81,6 +81,45 @@ final class CalendarGatewayTest extends TestCase
         self::assertStringContainsString('/events/google-event-id', $requests[0][1]);
     }
 
+    public function testGoogleUpsertEventIncludesIanaTimeZoneAndLocalWallClock(): void
+    {
+        $requests = [];
+        $responses = [
+            new MockResponse(json_encode(['id' => 'google-event-id'], JSON_THROW_ON_ERROR)),
+        ];
+        $httpClient = new MockHttpClient(function (string $method, string $url, array $options) use (&$requests, &$responses): MockResponse {
+            $requests[] = [$method, $url, $options];
+            $response = array_shift($responses);
+            if (!$response instanceof MockResponse) {
+                throw new \LogicException('Test response queue is empty.');
+            }
+
+            return $response;
+        });
+        $gateway = new GoogleCalendarGateway($httpClient, 'client-id', 'client-secret');
+
+        $gateway->upsertEvent(
+            'access-token',
+            'Take medication',
+            new \DateTimeImmutable('2026-08-29T22:25:00+00:00'),
+            new \DateTimeImmutable('2026-08-29T22:55:00+00:00'),
+            'Instructions',
+            null,
+            null,
+            'America/El_Salvador'
+        );
+
+        /** @var array{
+         *     start: array{dateTime: string, timeZone: string},
+         *     end: array{dateTime: string, timeZone: string}
+         * } $payload */
+        $payload = json_decode($requests[0][2]['body'], true, 512, JSON_THROW_ON_ERROR);
+        self::assertSame('America/El_Salvador', $payload['start']['timeZone']);
+        self::assertSame('America/El_Salvador', $payload['end']['timeZone']);
+        self::assertSame('2026-08-29T16:25:00-06:00', $payload['start']['dateTime']);
+        self::assertSame('2026-08-29T16:55:00-06:00', $payload['end']['dateTime']);
+    }
+
     public function testGoogleReusesAnEventWhenAnIdempotentCreateWasRetried(): void
     {
         $requests = [];
@@ -155,6 +194,45 @@ final class CalendarGatewayTest extends TestCase
         self::assertSame('2026-08-03T14:00:00', $payload['start']['dateTime']);
         self::assertSame('UTC', $payload['start']['timeZone']);
         self::assertSame('stable-event-key', $payload['transactionId']);
+    }
+
+    public function testMicrosoftWritesUtcEvenWhenIanaTimeZoneIsPassed(): void
+    {
+        $requests = [];
+        $responses = [
+            new MockResponse(json_encode(['id' => 'microsoft-event-id'], JSON_THROW_ON_ERROR)),
+        ];
+        $httpClient = new MockHttpClient(function (string $method, string $url, array $options) use (&$requests, &$responses): MockResponse {
+            $requests[] = [$method, $url, $options];
+            $response = array_shift($responses);
+            if (!$response instanceof MockResponse) {
+                throw new \LogicException('Test response queue is empty.');
+            }
+
+            return $response;
+        });
+        $gateway = new MicrosoftCalendarGateway($httpClient, 'client-id', 'client-secret', 'common');
+
+        $gateway->upsertEvent(
+            'access-token',
+            'Take medication',
+            new \DateTimeImmutable('2026-08-29T22:25:00+00:00'),
+            new \DateTimeImmutable('2026-08-29T22:55:00+00:00'),
+            'Instructions',
+            null,
+            'stable-event-key',
+            'America/El_Salvador'
+        );
+
+        /** @var array{
+         *     start: array{dateTime: string, timeZone: string},
+         *     end: array{dateTime: string, timeZone: string}
+         * } $payload */
+        $payload = json_decode($requests[0][2]['body'], true, 512, JSON_THROW_ON_ERROR);
+        self::assertSame('2026-08-29T22:25:00', $payload['start']['dateTime']);
+        self::assertSame('UTC', $payload['start']['timeZone']);
+        self::assertSame('2026-08-29T22:55:00', $payload['end']['dateTime']);
+        self::assertSame('UTC', $payload['end']['timeZone']);
     }
 
     public function testGoogleExchangeServerAuthCodeThrowsWhenNotConfigured(): void

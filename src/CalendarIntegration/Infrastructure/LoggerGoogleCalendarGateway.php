@@ -43,7 +43,8 @@ final class LoggerGoogleCalendarGateway implements CalendarProvider, ServerAuthC
         \DateTimeImmutable $end,
         string $description,
         ?string $externalEventId = null,
-        ?string $idempotencyKey = null
+        ?string $idempotencyKey = null,
+        string $timeZone = 'UTC'
     ): string {
         $eventId = $externalEventId ?? 'google_mock_' . bin2hex(random_bytes(8));
         $this->logger->info('Google Calendar event upserted in test gateway.', ['eventId' => $eventId]);

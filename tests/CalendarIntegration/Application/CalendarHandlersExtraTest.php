@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\CalendarIntegration\Application;
 
+use CalendarIntegration\Application\CalendarEventRemover;
 use CalendarIntegration\Application\CalendarProviderResolver;
 use CalendarIntegration\Application\Command\DisconnectCalendarCommand;
 use CalendarIntegration\Application\Command\DisconnectCalendarHandler;
@@ -60,7 +61,12 @@ final class CalendarHandlersExtraTest extends TestCase
 
         $linkRepo->expects(self::once())->method('save')->with($link);
 
-        $handler = new DisconnectCalendarHandler($linkRepo, $profileRepo, $mapRepo, $resolver, $vault);
+        $handler = new DisconnectCalendarHandler(
+            $linkRepo,
+            $profileRepo,
+            $mapRepo,
+            new CalendarEventRemover($linkRepo, $mapRepo, $resolver, $vault)
+        );
         $res = $handler(new DisconnectCalendarCommand('prof-1', 'acc-1', 'google'));
 
         self::assertTrue($res->isFailure());
@@ -291,7 +297,8 @@ final class CalendarHandlersExtraTest extends TestCase
         // Forbidden
         $otherProfile = new PatientProfile(new ProfileId('prof-1'), new UserId('acc-other'), 'Name', new \DateTimeImmutable('1990-01-01'), 'male', null, new \DateTimeImmutable(), new \DateTimeImmutable());
         $profileRepo->method('findById')->willReturn($otherProfile);
-        $handler = new DisconnectCalendarHandler($linkRepo, $profileRepo, $mapRepo, $resolver, $vault);
+        $remover = new CalendarEventRemover($linkRepo, $mapRepo, $resolver, $vault);
+        $handler = new DisconnectCalendarHandler($linkRepo, $profileRepo, $mapRepo, $remover);
         $res = $handler(new DisconnectCalendarCommand('prof-1', 'acc-1', 'google'));
         self::assertTrue($res->isFailure());
         self::assertSame('You do not own this profile.', $res->getFailure()->getMessage());
@@ -301,9 +308,83 @@ final class CalendarHandlersExtraTest extends TestCase
         $profileRepo = $this->createMock(ProfileRepository::class);
         $profileRepo->method('findById')->willReturn($myProfile);
         $linkRepo->method('findByProfileAndProvider')->willReturn(null);
-        $handler = new DisconnectCalendarHandler($linkRepo, $profileRepo, $mapRepo, $resolver, $vault);
+        $handler = new DisconnectCalendarHandler($linkRepo, $profileRepo, $mapRepo, $remover);
         $res = $handler(new DisconnectCalendarCommand('prof-1', 'acc-1', 'google'));
         self::assertTrue($res->isFailure());
         self::assertSame('NOT_FOUND', $res->getFailure()->getType());
+    }
+
+    public function testDisconnectCalendarKeepsMappingWhenRemoteDeleteFails(): void
+    {
+        $linkRepo = $this->createMock(CalendarLinkRepository::class);
+        $profileRepo = $this->createMock(ProfileRepository::class);
+        $mapRepo = $this->createMock(CalendarEventMappingRepository::class);
+        $google = $this->createMock(CalendarProvider::class);
+        $microsoft = $this->createMock(CalendarProvider::class);
+        $resolver = new CalendarProviderResolver($google, $microsoft);
+        $vault = $this->createMock(TokenVault::class);
+
+        $profile = new PatientProfile(new ProfileId('prof-1'), new UserId('acc-1'), 'Name', new \DateTimeImmutable('1990-01-01'), 'male', null, new \DateTimeImmutable(), new \DateTimeImmutable());
+        $profileRepo->method('findById')->willReturn($profile);
+
+        $link = CalendarLink::create(new ProfileId('prof-1'), 'google', 'enc-refresh');
+        $linkRepo->method('findByProfileAndProvider')->willReturn($link);
+
+        $mapping = CalendarEventMapping::create('dose-1', 'google', 'ext-1');
+        $mapRepo->method('findByProfileAndProvider')->willReturn([$mapping]);
+        $mapRepo->expects(self::never())->method('delete');
+        $linkRepo->expects(self::never())->method('delete');
+
+        $vault->method('decrypt')->willReturn('dec-refresh');
+        $google->method('refreshAccessToken')->willReturn(new CalendarOAuthTokens('access-token', null));
+        $google->method('deleteEvent')->willThrowException(new \RuntimeException('Google Calendar API delete failed with status 500.'));
+
+        $handler = new DisconnectCalendarHandler(
+            $linkRepo,
+            $profileRepo,
+            $mapRepo,
+            new CalendarEventRemover($linkRepo, $mapRepo, $resolver, $vault)
+        );
+        $res = $handler(new DisconnectCalendarCommand('prof-1', 'acc-1', 'google'));
+
+        self::assertTrue($res->isFailure());
+        self::assertSame('CALENDAR_DISCONNECT_FAILED', $res->getFailure()->getType());
+        self::assertSame(['failed' => 1], $res->getFailure()->getDetails());
+    }
+
+    public function testDisconnectCalendarDeletesMappingWhenRemoteDeleteSucceeds(): void
+    {
+        $linkRepo = $this->createMock(CalendarLinkRepository::class);
+        $profileRepo = $this->createMock(ProfileRepository::class);
+        $mapRepo = $this->createMock(CalendarEventMappingRepository::class);
+        $google = $this->createMock(CalendarProvider::class);
+        $microsoft = $this->createMock(CalendarProvider::class);
+        $resolver = new CalendarProviderResolver($google, $microsoft);
+        $vault = $this->createMock(TokenVault::class);
+
+        $profile = new PatientProfile(new ProfileId('prof-1'), new UserId('acc-1'), 'Name', new \DateTimeImmutable('1990-01-01'), 'male', null, new \DateTimeImmutable(), new \DateTimeImmutable());
+        $profileRepo->method('findById')->willReturn($profile);
+
+        $link = CalendarLink::create(new ProfileId('prof-1'), 'google', 'enc-refresh');
+        $linkRepo->method('findByProfileAndProvider')->willReturn($link);
+
+        $mapping = CalendarEventMapping::create('dose-1', 'google', 'ext-1');
+        $mapRepo->method('findByProfileAndProvider')->willReturn([$mapping]);
+        $mapRepo->expects(self::once())->method('delete')->with($mapping);
+        $linkRepo->expects(self::once())->method('delete')->with($link);
+
+        $vault->method('decrypt')->willReturn('dec-refresh');
+        $google->method('refreshAccessToken')->willReturn(new CalendarOAuthTokens('access-token', null));
+        $google->expects(self::once())->method('deleteEvent')->with('access-token', 'ext-1');
+
+        $handler = new DisconnectCalendarHandler(
+            $linkRepo,
+            $profileRepo,
+            $mapRepo,
+            new CalendarEventRemover($linkRepo, $mapRepo, $resolver, $vault)
+        );
+        $res = $handler(new DisconnectCalendarCommand('prof-1', 'acc-1', 'google'));
+
+        self::assertTrue($res->isSuccess());
     }
 }

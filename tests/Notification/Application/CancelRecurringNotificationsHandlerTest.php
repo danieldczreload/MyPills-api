@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Notification\Application;
 
+use CalendarIntegration\Application\CalendarEventRemover;
 use CalendarIntegration\Application\CalendarProviderResolver;
 use CalendarIntegration\Domain\CalendarEventMapping;
 use CalendarIntegration\Domain\CalendarEventMappingRepository;
@@ -15,6 +16,8 @@ use DoseEvent\Domain\DoseEvent;
 use DoseEvent\Domain\DoseEventRepository;
 use Medication\Domain\Medication;
 use Medication\Domain\MedicationRepository;
+use CalendarIntegration\Application\Command\DisconnectCalendarCommand;
+use CalendarIntegration\Application\Command\DisconnectCalendarHandler;
 use Notification\Application\Command\CancelRecurringNotificationsCommand;
 use Notification\Application\Command\CancelRecurringNotificationsHandler;
 use Notification\Domain\DeviceToken;
@@ -60,6 +63,7 @@ final class CancelRecurringNotificationsHandlerTest extends TestCase
         $schedRepo = $this->createMock(ScheduleRepository::class);
         $schedRepo->method('findById')->with($scheduleId)->willReturn($schedule);
         $schedRepo->expects(self::once())->method('delete')->with($schedule);
+        $schedRepo->expects(self::never())->method('save');
 
         $doseRepo = $this->createMock(DoseEventRepository::class);
         $doseRepo->method('findPendingByScheduleIds')->with([$scheduleId])->willReturn([$dose1, $dose2]);
@@ -89,9 +93,13 @@ final class CancelRecurringNotificationsHandlerTest extends TestCase
         $map1 = CalendarEventMapping::create($dose1->id()->value(), 'google', 'ext-1');
         $map2 = CalendarEventMapping::create($dose2->id()->value(), 'google', 'ext-2');
         $mapRepo = $this->createMock(CalendarEventMappingRepository::class);
-        $mapRepo->method('findByDoseEventIds')->with([$dose1->id()->value(), $dose2->id()->value()])->willReturn([$map1, $map2]);
+        $mapRepo->expects(self::exactly(2))
+            ->method('findByDoseEventIds')
+            ->with([$dose1->id()->value(), $dose2->id()->value()])
+            ->willReturnOnConsecutiveCalls([$map1, $map2], []);
         $mapRepo->expects(self::exactly(2))->method('delete');
         $mapRepo->expects(self::once())->method('flush');
+        $doseRepo->expects(self::never())->method('save');
 
         $google = $this->createMock(CalendarProvider::class);
         $google->method('refreshAccessToken')->with('dec-refresh')->willReturn(new CalendarOAuthTokens('google-token', null));
@@ -110,10 +118,8 @@ final class CancelRecurringNotificationsHandlerTest extends TestCase
             $doseRepo,
             $deviceRepo,
             $pushGateway,
-            $linkRepo,
             $mapRepo,
-            $resolver,
-            $tokenVault
+            new CalendarEventRemover($linkRepo, $mapRepo, $resolver, $tokenVault)
         );
 
         $command = new CancelRecurringNotificationsCommand(
@@ -137,6 +143,97 @@ final class CancelRecurringNotificationsHandlerTest extends TestCase
         self::assertTrue($data['pushCancelled']);
     }
 
+    public function testKeepsMappingLocatableWhenRemoteDeleteFailsWithDefaultPush(): void
+    {
+        $profileId = new ProfileId('00000000-0000-0000-0000-000000000001');
+        $accountId = new UserId('00000000-0000-0000-0000-000000000002');
+        $medicationId = new MedicationId('00000000-0000-0000-0000-000000000003');
+        $scheduleId = new ScheduleId('00000000-0000-0000-0000-000000000004');
+
+        $profile = PatientProfile::create($profileId, $accountId, 'Test', new \DateTimeImmutable('1990-01-01'), 'male');
+        $medication = Medication::create($medicationId, $profileId, 'Amoxicillin', '500mg', 'After meals');
+        $now = new \DateTimeImmutable();
+        $schedule = new DailySchedule($scheduleId, $medicationId, [new TimeOfDay(8, 0)], $now, null, null, $now, $now);
+        $dose1 = DoseEvent::create(new DoseEventId('00000000-0000-0000-0000-000000000011'), $medicationId, $scheduleId, $now->modify('+1 day'));
+
+        $profileRepo = $this->createMock(ProfileRepository::class);
+        $profileRepo->method('findById')->willReturn($profile);
+        $medicationRepo = $this->createMock(MedicationRepository::class);
+        $medicationRepo->method('findById')->willReturn($medication);
+        $schedRepo = $this->createMock(ScheduleRepository::class);
+        $schedRepo->method('findById')->willReturn($schedule);
+        $schedRepo->expects(self::once())->method('save')->with(self::callback(static function ($saved): bool {
+            return $saved instanceof DailySchedule && $saved->isCancelled();
+        }));
+        $doseRepo = $this->createMock(DoseEventRepository::class);
+        $doseRepo->method('findPendingByScheduleIds')->willReturn([$dose1]);
+        $doseRepo->expects(self::once())->method('save')->with(self::callback(static function (DoseEvent $dose): bool {
+            return $dose->status() === 'skipped';
+        }));
+        $doseRepo->expects(self::once())->method('deletePendingByScheduleIds')->with([$scheduleId]);
+
+        $link = CalendarLink::create($profileId, 'google', 'enc-refresh');
+        $linkRepo = $this->createMock(CalendarLinkRepository::class);
+        $linkRepo->method('findByProfileAndProvider')->willReturn($link);
+
+        $map1 = CalendarEventMapping::create($dose1->id()->value(), 'google', 'ext-1');
+        $mapRepo = $this->createMock(CalendarEventMappingRepository::class);
+        $mapRepo->method('findByDoseEventIds')->willReturn([$map1]);
+        $mapRepo->method('findByProfileAndProvider')->with($profileId, 'google')->willReturn([$map1]);
+        $mapRepo->expects(self::never())->method('delete');
+        $mapRepo->expects(self::atLeastOnce())->method('flush');
+        $linkRepo->expects(self::never())->method('delete');
+
+        $google = $this->createMock(CalendarProvider::class);
+        $google->method('refreshAccessToken')->willReturn(new CalendarOAuthTokens('google-token', null));
+        $google->method('deleteEvent')->willThrowException(new \RuntimeException('Google Calendar API delete failed with status 500.'));
+
+        $tokenVault = $this->createMock(TokenVault::class);
+        $tokenVault->method('decrypt')->willReturn('dec-refresh');
+        $remover = new CalendarEventRemover(
+            $linkRepo,
+            $mapRepo,
+            new CalendarProviderResolver($google, $this->createMock(CalendarProvider::class)),
+            $tokenVault
+        );
+
+        $deviceRepo = $this->createMock(DeviceTokenRepository::class);
+        $deviceRepo->method('findByAccountId')->willReturn([]);
+
+        $handler = new CancelRecurringNotificationsHandler(
+            $profileRepo,
+            $medicationRepo,
+            $schedRepo,
+            $doseRepo,
+            $deviceRepo,
+            $this->createMock(PushNotificationGateway::class),
+            $mapRepo,
+            $remover
+        );
+
+        $result = $handler(new CancelRecurringNotificationsCommand(
+            $profileId->value(),
+            $accountId->value(),
+            $scheduleId->value(),
+            medicationId: null,
+            cancelPush: true,
+            cancelCalendar: true,
+            deleteSchedule: false
+        ));
+
+        self::assertTrue($result->isSuccess());
+        self::assertSame(0, $result->getValue()['calendarEventsDeleted']);
+        self::assertTrue($result->getValue()['pushCancelled']);
+        self::assertSame('skipped', $dose1->status());
+        self::assertSame([$map1], $mapRepo->findByProfileAndProvider($profileId, 'google'));
+
+        $disconnect = new DisconnectCalendarHandler($linkRepo, $profileRepo, $mapRepo, $remover);
+        $disconnectResult = $disconnect(new DisconnectCalendarCommand($profileId->value(), $accountId->value(), 'google'));
+        self::assertTrue($disconnectResult->isFailure());
+        self::assertSame('CALENDAR_DISCONNECT_FAILED', $disconnectResult->getFailure()->getType());
+        self::assertSame(['failed' => 1], $disconnectResult->getFailure()->getDetails());
+    }
+
     public function testProfileNotFoundAndForbidden(): void
     {
         $profileRepo = $this->createMock(ProfileRepository::class);
@@ -145,10 +242,8 @@ final class CancelRecurringNotificationsHandlerTest extends TestCase
         $doseRepo = $this->createMock(DoseEventRepository::class);
         $deviceRepo = $this->createMock(DeviceTokenRepository::class);
         $pushGateway = $this->createMock(PushNotificationGateway::class);
-        $linkRepo = $this->createMock(CalendarLinkRepository::class);
         $mapRepo = $this->createMock(CalendarEventMappingRepository::class);
-        $resolver = new CalendarProviderResolver($this->createMock(CalendarProvider::class), $this->createMock(CalendarProvider::class));
-        $tokenVault = $this->createMock(TokenVault::class);
+        $remover = $this->unusedRemover($mapRepo);
 
         $handler = new CancelRecurringNotificationsHandler(
             $profileRepo,
@@ -157,10 +252,8 @@ final class CancelRecurringNotificationsHandlerTest extends TestCase
             $doseRepo,
             $deviceRepo,
             $pushGateway,
-            $linkRepo,
             $mapRepo,
-            $resolver,
-            $tokenVault
+            $remover
         );
 
         // Profile not found
@@ -174,7 +267,7 @@ final class CancelRecurringNotificationsHandlerTest extends TestCase
         $profile = PatientProfile::create(new ProfileId('prof-1'), new UserId('acc-other'), 'Test', new \DateTimeImmutable('1990-01-01'), 'male');
         $profileRepo = $this->createMock(ProfileRepository::class);
         $profileRepo->method('findById')->willReturn($profile);
-        $handler = new CancelRecurringNotificationsHandler($profileRepo, $medicationRepo, $schedRepo, $doseRepo, $deviceRepo, $pushGateway, $linkRepo, $mapRepo, $resolver, $tokenVault);
+        $handler = new CancelRecurringNotificationsHandler($profileRepo, $medicationRepo, $schedRepo, $doseRepo, $deviceRepo, $pushGateway, $mapRepo, $remover);
         $res = $handler($cmd);
         self::assertTrue($res->isFailure());
         self::assertSame('You do not own this profile.', $res->getFailure()->getMessage());
@@ -188,17 +281,15 @@ final class CancelRecurringNotificationsHandlerTest extends TestCase
         $doseRepo = $this->createMock(DoseEventRepository::class);
         $deviceRepo = $this->createMock(DeviceTokenRepository::class);
         $pushGateway = $this->createMock(PushNotificationGateway::class);
-        $linkRepo = $this->createMock(CalendarLinkRepository::class);
         $mapRepo = $this->createMock(CalendarEventMappingRepository::class);
-        $resolver = new CalendarProviderResolver($this->createMock(CalendarProvider::class), $this->createMock(CalendarProvider::class));
-        $tokenVault = $this->createMock(TokenVault::class);
+        $remover = $this->unusedRemover($mapRepo);
 
         $profile = PatientProfile::create(new ProfileId('prof-1'), new UserId('acc-1'), 'Test', new \DateTimeImmutable('1990-01-01'), 'male');
         $profileRepo->method('findById')->willReturn($profile);
 
         // Schedule not found
         $schedRepo->method('findById')->willReturn(null);
-        $handler = new CancelRecurringNotificationsHandler($profileRepo, $medicationRepo, $schedRepo, $doseRepo, $deviceRepo, $pushGateway, $linkRepo, $mapRepo, $resolver, $tokenVault);
+        $handler = new CancelRecurringNotificationsHandler($profileRepo, $medicationRepo, $schedRepo, $doseRepo, $deviceRepo, $pushGateway, $mapRepo, $remover);
         $cmd = new CancelRecurringNotificationsCommand('prof-1', 'acc-1', 'sch-1', null, true, true, false);
         $res = $handler($cmd);
         self::assertTrue($res->isFailure());
@@ -210,7 +301,7 @@ final class CancelRecurringNotificationsHandlerTest extends TestCase
         $schedRepo->method('findById')->willReturn($sched);
         $otherMed = Medication::create(new MedicationId('med-1'), new ProfileId('prof-other'), 'Med', null);
         $medicationRepo->method('findById')->willReturn($otherMed);
-        $handler = new CancelRecurringNotificationsHandler($profileRepo, $medicationRepo, $schedRepo, $doseRepo, $deviceRepo, $pushGateway, $linkRepo, $mapRepo, $resolver, $tokenVault);
+        $handler = new CancelRecurringNotificationsHandler($profileRepo, $medicationRepo, $schedRepo, $doseRepo, $deviceRepo, $pushGateway, $mapRepo, $remover);
         $res = $handler($cmd);
         self::assertTrue($res->isFailure());
         self::assertSame('Schedule does not belong to this profile.', $res->getFailure()->getMessage());
@@ -224,17 +315,15 @@ final class CancelRecurringNotificationsHandlerTest extends TestCase
         $doseRepo = $this->createMock(DoseEventRepository::class);
         $deviceRepo = $this->createMock(DeviceTokenRepository::class);
         $pushGateway = $this->createMock(PushNotificationGateway::class);
-        $linkRepo = $this->createMock(CalendarLinkRepository::class);
         $mapRepo = $this->createMock(CalendarEventMappingRepository::class);
-        $resolver = new CalendarProviderResolver($this->createMock(CalendarProvider::class), $this->createMock(CalendarProvider::class));
-        $tokenVault = $this->createMock(TokenVault::class);
+        $remover = $this->unusedRemover($mapRepo);
 
         $profile = PatientProfile::create(new ProfileId('prof-1'), new UserId('acc-1'), 'Test', new \DateTimeImmutable('1990-01-01'), 'male');
         $profileRepo->method('findById')->willReturn($profile);
 
         // Medication not found
         $medicationRepo->method('findById')->willReturn(null);
-        $handler = new CancelRecurringNotificationsHandler($profileRepo, $medicationRepo, $schedRepo, $doseRepo, $deviceRepo, $pushGateway, $linkRepo, $mapRepo, $resolver, $tokenVault);
+        $handler = new CancelRecurringNotificationsHandler($profileRepo, $medicationRepo, $schedRepo, $doseRepo, $deviceRepo, $pushGateway, $mapRepo, $remover);
         $cmd = new CancelRecurringNotificationsCommand('prof-1', 'acc-1', null, 'med-1', true, true, false);
         $res = $handler($cmd);
         self::assertTrue($res->isFailure());
@@ -247,10 +336,20 @@ final class CancelRecurringNotificationsHandlerTest extends TestCase
         $schedRepo->method('findByMedicationIds')->willReturn([]);
         $doseRepo->method('findPendingByScheduleIds')->willReturn([]);
 
-        $handler = new CancelRecurringNotificationsHandler($profileRepo, $medicationRepo, $schedRepo, $doseRepo, $deviceRepo, $pushGateway, $linkRepo, $mapRepo, $resolver, $tokenVault);
+        $handler = new CancelRecurringNotificationsHandler($profileRepo, $medicationRepo, $schedRepo, $doseRepo, $deviceRepo, $pushGateway, $mapRepo, $remover);
         $cmdAll = new CancelRecurringNotificationsCommand('prof-1', 'acc-1', null, null, false, false, false);
         $resAll = $handler($cmdAll);
         self::assertTrue($resAll->isSuccess());
         self::assertSame(0, $resAll->getValue()['schedulesTargeted']);
+    }
+
+    private function unusedRemover(CalendarEventMappingRepository $mapRepo): CalendarEventRemover
+    {
+        return new CalendarEventRemover(
+            $this->createMock(CalendarLinkRepository::class),
+            $mapRepo,
+            new CalendarProviderResolver($this->createMock(CalendarProvider::class), $this->createMock(CalendarProvider::class)),
+            $this->createMock(TokenVault::class)
+        );
     }
 }

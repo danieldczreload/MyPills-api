@@ -4,11 +4,8 @@ declare(strict_types=1);
 
 namespace Notification\Application\Command;
 
-use CalendarIntegration\Application\CalendarProviderResolver;
-use CalendarIntegration\Domain\CalendarEventMapping;
+use CalendarIntegration\Application\CalendarEventRemover;
 use CalendarIntegration\Domain\CalendarEventMappingRepository;
-use CalendarIntegration\Domain\CalendarLinkRepository;
-use CalendarIntegration\Domain\CalendarLinkStatus;
 use DoseEvent\Domain\DoseEvent;
 use DoseEvent\Domain\DoseEventRepository;
 use Medication\Domain\Medication;
@@ -20,7 +17,6 @@ use Schedule\Domain\Schedule;
 use Schedule\Domain\ScheduleRepository;
 use Shared\Domain\Failure;
 use Shared\Domain\Result;
-use Shared\Domain\TokenVault;
 use Shared\Domain\ValueObject\MedicationId;
 use Shared\Domain\ValueObject\ProfileId;
 use Shared\Domain\ValueObject\ScheduleId;
@@ -37,10 +33,8 @@ final class CancelRecurringNotificationsHandler
         private readonly DoseEventRepository $doseEventRepository,
         private readonly DeviceTokenRepository $deviceTokenRepository,
         private readonly PushNotificationGateway $pushNotificationGateway,
-        private readonly CalendarLinkRepository $calendarLinkRepository,
         private readonly CalendarEventMappingRepository $mappingRepository,
-        private readonly CalendarProviderResolver $providerResolver,
-        private readonly TokenVault $tokenVault
+        private readonly CalendarEventRemover $calendarEventRemover
     ) {
     }
 
@@ -99,42 +93,13 @@ final class CancelRecurringNotificationsHandler
         $calendarEventsDeleted = 0;
         if ($command->cancelCalendar && $pendingDoseEventIds !== []) {
             $mappings = $this->mappingRepository->findByDoseEventIds($pendingDoseEventIds);
-
-            /** @var array<string, CalendarEventMapping[]> $mappingsByProvider */
-            $mappingsByProvider = [];
-            foreach ($mappings as $mapping) {
-                $mappingsByProvider[$mapping->provider()][] = $mapping;
-            }
-
-            foreach ($mappingsByProvider as $provider => $provMappings) {
-                $link = $this->calendarLinkRepository->findByProfileAndProvider($profileId, $provider);
-                if ($link === null || $link->status() === CalendarLinkStatus::REAUTH_REQUIRED) {
-                    continue;
-                }
-
-                try {
-                    $gateway = $this->providerResolver->resolveString($provider);
-                    $tokens = $gateway->refreshAccessToken($this->tokenVault->decrypt($link->encryptedRefreshToken()));
-
-                    foreach ($provMappings as $mapping) {
-                        try {
-                            $gateway->deleteEvent($tokens->accessToken(), $mapping->externalEventId());
-                            ++$calendarEventsDeleted;
-                        } catch (\Throwable) {
-                            // Silently continue on individual event failure
-                        }
-                        $this->mappingRepository->delete($mapping);
-                    }
-                } catch (\Throwable) {
-                    // Silently continue on provider refresh failure
-                }
-            }
-
-            $this->mappingRepository->flush();
+            $calendarEventsDeleted = $this->calendarEventRemover->remove($profileId, $mappings);
         }
 
         $pushCancelled = false;
         if ($command->cancelPush) {
+            $this->retainDosesWithLeftoverMappings($pendingDoseEvents, $pendingDoseEventIds);
+
             if ($scheduleIds !== []) {
                 $this->doseEventRepository->deletePendingByScheduleIds($scheduleIds);
             }
@@ -169,6 +134,15 @@ final class CancelRecurringNotificationsHandler
 
         if ($command->deleteSchedule && $command->scheduleId !== null && $schedules !== []) {
             $this->scheduleRepository->delete($schedules[0]);
+        } else {
+            $cancelledAt = new \DateTimeImmutable();
+            foreach ($schedules as $schedule) {
+                if ($schedule->isCancelled()) {
+                    continue;
+                }
+                $schedule->markCancelled($cancelledAt);
+                $this->scheduleRepository->save($schedule);
+            }
         }
 
         return Result::success([
@@ -180,5 +154,31 @@ final class CancelRecurringNotificationsHandler
             'calendarEventsDeleted' => $calendarEventsDeleted,
             'pushCancelled' => $pushCancelled,
         ]);
+    }
+
+    /**
+     * @param DoseEvent[] $pendingDoseEvents
+     * @param string[] $pendingDoseEventIds
+     */
+    private function retainDosesWithLeftoverMappings(array $pendingDoseEvents, array $pendingDoseEventIds): void
+    {
+        if ($pendingDoseEventIds === []) {
+            return;
+        }
+
+        $keptDoseEventIds = [];
+        foreach ($this->mappingRepository->findByDoseEventIds($pendingDoseEventIds) as $mapping) {
+            $keptDoseEventIds[$mapping->doseEventId()] = true;
+        }
+
+        foreach ($pendingDoseEvents as $doseEvent) {
+            if (!isset($keptDoseEventIds[$doseEvent->id()->value()])) {
+                continue;
+            }
+
+            // Leftover mappings join live dose_events; skipped rows stay findable.
+            $doseEvent->markAs('skipped');
+            $this->doseEventRepository->save($doseEvent);
+        }
     }
 }
