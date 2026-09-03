@@ -6,6 +6,8 @@ namespace App\Tests\Identity\Application;
 
 use Identity\Application\Command\AuthenticateCommand;
 use Identity\Application\Command\AuthenticateHandler;
+use Identity\Application\Command\LogoutCommand;
+use Identity\Application\Command\LogoutHandler;
 use Identity\Application\Command\RefreshTokenCommand;
 use Identity\Application\Command\RefreshTokenHandler;
 use Identity\Domain\Account;
@@ -104,5 +106,48 @@ final class IdentityHandlersTest extends TestCase
         self::assertTrue($res->isSuccess());
         self::assertArrayHasKey('token', $res->getValue());
         self::assertArrayHasKey('refreshToken', $res->getValue());
+    }
+
+    public function testLogoutRevokesRefreshTokenAndIsIdempotent(): void
+    {
+        $jwt = new JwtService('test-secret');
+        $userId = UserId::generate();
+        $stored = new RefreshToken(RefreshTokenId::generate(), $userId, 'session-token', new \DateTimeImmutable('+30 days'), new \DateTimeImmutable());
+
+        $refreshRepo = $this->createMock(RefreshTokenRepository::class);
+        $refreshRepo->method('findByToken')->with('session-token')->willReturn($stored);
+        $refreshRepo->expects(self::once())->method('delete')->with($stored);
+        $refreshRepo->expects(self::never())->method('deleteByAccountId');
+
+        $handler = new LogoutHandler($refreshRepo, $jwt);
+        $res = $handler(new LogoutCommand('session-token'));
+        self::assertTrue($res->isSuccess());
+
+        $missingRepo = $this->createMock(RefreshTokenRepository::class);
+        $missingRepo->method('findByToken')->with('already-gone')->willReturn(null);
+        $missingRepo->expects(self::never())->method('delete');
+        $missingHandler = new LogoutHandler($missingRepo, $jwt);
+        self::assertTrue($missingHandler(new LogoutCommand('already-gone'))->isSuccess());
+        self::assertTrue($missingHandler(new LogoutCommand())->isSuccess());
+    }
+
+    public function testLogoutWithAccessTokenRevokesAllAccountTokens(): void
+    {
+        $jwt = new JwtService('test-secret');
+        $userId = UserId::generate();
+        $accessToken = $jwt->createToken([
+            'sub' => $userId->value(),
+            'email' => 'user@example.com',
+        ]);
+
+        $refreshRepo = $this->createMock(RefreshTokenRepository::class);
+        $refreshRepo->expects(self::once())->method('deleteByAccountId')->with(self::callback(
+            static fn (mixed $id): bool => $id instanceof UserId && $id->equals($userId)
+        ));
+        $refreshRepo->expects(self::never())->method('delete');
+
+        $handler = new LogoutHandler($refreshRepo, $jwt);
+        $res = $handler(new LogoutCommand('ignored-when-jwt-valid', $accessToken));
+        self::assertTrue($res->isSuccess());
     }
 }

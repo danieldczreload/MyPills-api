@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace CalendarIntegration\Infrastructure\Persistence;
 
+use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\EntityManagerInterface;
 use CalendarIntegration\Domain\CalendarEventMapping;
 use CalendarIntegration\Domain\CalendarEventMappingRepository;
@@ -19,21 +20,40 @@ final class DoctrineCalendarEventMappingRepository implements CalendarEventMappi
     public function save(CalendarEventMapping $mapping): void
     {
         $entity = $this->entityManager->find(CalendarEventMappingDoctrineEntity::class, $mapping->id());
-
         if ($entity === null) {
-            $entity = new CalendarEventMappingDoctrineEntity(
-                $mapping->id(),
-                $mapping->doseEventId(),
-                $mapping->provider(),
-                $mapping->externalEventId(),
-                $mapping->createdAt()
-            );
-            $this->entityManager->persist($entity);
-        } else {
-            $entity->setExternalEventId($mapping->externalEventId());
+            $entity = $this->entityManager->getRepository(CalendarEventMappingDoctrineEntity::class)
+                ->findOneBy([
+                    'doseEventId' => $mapping->doseEventId(),
+                    'provider' => $mapping->provider(),
+                ]);
         }
 
-        $this->entityManager->flush();
+        if ($entity !== null) {
+            $entity->setExternalEventId($mapping->externalEventId());
+            $this->entityManager->flush();
+
+            return;
+        }
+
+        // Concurrent syncs race on (dose_event_id, provider); a plain INSERT 500s the second request.
+        $this->entityManager->getConnection()->executeStatement(
+            <<<'SQL'
+            INSERT INTO calendar_event_mappings (id, dose_event_id, provider, external_event_id, created_at)
+            VALUES (:id, :dose_event_id, :provider, :external_event_id, :created_at)
+            ON CONFLICT (dose_event_id, provider)
+            DO UPDATE SET external_event_id = EXCLUDED.external_event_id
+            SQL,
+            [
+                'id' => $mapping->id(),
+                'dose_event_id' => $mapping->doseEventId(),
+                'provider' => $mapping->provider(),
+                'external_event_id' => $mapping->externalEventId(),
+                'created_at' => $mapping->createdAt(),
+            ],
+            [
+                'created_at' => Types::DATETIME_IMMUTABLE,
+            ]
+        );
     }
 
     public function findByDoseEventAndProvider(string $doseEventId, string $provider): ?CalendarEventMapping

@@ -213,7 +213,13 @@ final class SyncCalendarHandler
                 ? sprintf('Take Medication: %s (%s)', $med->name(), $doseDisplay)
                 : sprintf('Take Medication: %s', $med->name());
             $mappingKey = $event->id()->value() . ':' . $link->provider();
-            $mapping = $mappings[$mappingKey] ?? null;
+            $mapping = $mappings[$mappingKey] ?? $this->mappingRepository->findByDoseEventAndProvider(
+                $event->id()->value(),
+                $link->provider()
+            );
+            if ($mapping !== null) {
+                $mappings[$mappingKey] = $mapping;
+            }
 
             try {
                 $zone = Timezone::dateTimeZoneOrUtc($timeZone);
@@ -237,6 +243,21 @@ final class SyncCalendarHandler
                     self::idempotencyKey($event->id()->value(), $link->provider()),
                     $zone->getName()
                 );
+
+                if ($mapping === null) {
+                    $mapping = CalendarEventMapping::create(
+                        $event->id()->value(),
+                        $link->provider(),
+                        $externalEventId
+                    );
+                    $mappings[$mappingKey] = $mapping;
+                    $this->mappingRepository->save($mapping);
+                    ++$eventsCreated;
+                } elseif ($mapping->externalEventId() !== $externalEventId) {
+                    $mapping->updateExternalEventId($externalEventId);
+                    $this->mappingRepository->save($mapping);
+                    ++$eventsUpdated;
+                }
             } catch (\Throwable $exception) {
                 return [
                     'provider' => $link->provider(),
@@ -244,24 +265,17 @@ final class SyncCalendarHandler
                     'detail' => $exception->getMessage(),
                 ];
             }
-
-            if ($mapping === null) {
-                $mapping = CalendarEventMapping::create(
-                    $event->id()->value(),
-                    $link->provider(),
-                    $externalEventId
-                );
-                $mappings[$mappingKey] = $mapping;
-                $this->mappingRepository->save($mapping);
-                ++$eventsCreated;
-            } elseif ($mapping->externalEventId() !== $externalEventId) {
-                $mapping->updateExternalEventId($externalEventId);
-                $this->mappingRepository->save($mapping);
-                ++$eventsUpdated;
-            }
         }
 
-        $this->mappingRepository->flush();
+        try {
+            $this->mappingRepository->flush();
+        } catch (\Throwable $exception) {
+            return [
+                'provider' => $link->provider(),
+                'reason' => 'UPSERT_FAILED',
+                'detail' => $exception->getMessage(),
+            ];
+        }
 
         return null;
     }

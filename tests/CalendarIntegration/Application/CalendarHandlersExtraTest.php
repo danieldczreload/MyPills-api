@@ -284,6 +284,53 @@ final class CalendarHandlersExtraTest extends TestCase
         self::assertSame(1, $res->getValue()['eventsUpdated']);
     }
 
+    public function testSyncCalendarReusesMappingWhenBulkLookupMisses(): void
+    {
+        $linkRepo = $this->createMock(CalendarLinkRepository::class);
+        $mapRepo = $this->createMock(CalendarEventMappingRepository::class);
+        $profileRepo = $this->createMock(ProfileRepository::class);
+        $medRepo = $this->createMock(MedicationRepository::class);
+        $schedRepo = $this->createMock(ScheduleRepository::class);
+        $doseRepo = $this->createMock(DoseEventRepository::class);
+        $google = $this->createMock(CalendarProvider::class);
+        $microsoft = $this->createMock(CalendarProvider::class);
+        $resolver = new CalendarProviderResolver($google, $microsoft);
+        $vault = $this->createMock(TokenVault::class);
+
+        $profile = new PatientProfile(new ProfileId('prof-1'), new UserId('acc-1'), 'Name', new \DateTimeImmutable('1990-01-01'), 'male', null, new \DateTimeImmutable(), new \DateTimeImmutable());
+        $profileRepo->method('findById')->willReturn($profile);
+
+        $link = CalendarLink::create(new ProfileId('prof-1'), 'google', 'enc-refresh');
+        $linkRepo->method('findByProfile')->willReturn([$link]);
+
+        $medId = new MedicationId('med-1');
+        $med = new Medication($medId, new ProfileId('prof-1'), 'Aspirin', 'pill', 'instructions', null, new \DateTimeImmutable(), new \DateTimeImmutable());
+        $medRepo->method('findByProfileId')->willReturn([$med]);
+
+        $sched = new DailySchedule(new ScheduleId('sch-1'), $medId, [new TimeOfDay(8, 0)], new \DateTimeImmutable(), null, null, new \DateTimeImmutable(), new \DateTimeImmutable());
+        $schedRepo->method('findByMedicationIds')->willReturn([$sched]);
+
+        $dose = DoseEvent::create(new DoseEventId('dose-1'), $medId, new ScheduleId('sch-1'), new \DateTimeImmutable('+1 day'));
+        $doseRepo->method('findByScheduleIdsAndRange')->willReturn([$dose]);
+
+        $existingMapping = CalendarEventMapping::create('dose-1', 'google', 'ext-existing');
+        $mapRepo->method('findByDoseEvents')->willReturn([]);
+        $mapRepo->method('findByDoseEventAndProvider')->with('dose-1', 'google')->willReturn($existingMapping);
+        $mapRepo->expects(self::never())->method('save');
+        $mapRepo->expects(self::once())->method('flush');
+
+        $vault->method('decrypt')->willReturn('dec-refresh');
+        $google->method('refreshAccessToken')->willReturn(new CalendarOAuthTokens('access', null));
+        $google->method('upsertEvent')->willReturn('ext-existing');
+
+        $handler = new SyncCalendarHandler($linkRepo, $mapRepo, $profileRepo, $medRepo, $schedRepo, $doseRepo, $resolver, $vault);
+        $res = $handler(new SyncCalendarCommand('acc-1', 'prof-1'));
+
+        self::assertTrue($res->isSuccess());
+        self::assertSame(0, $res->getValue()['eventsCreated']);
+        self::assertSame(0, $res->getValue()['eventsUpdated']);
+    }
+
     public function testDisconnectCalendarForbiddenAndNotFound(): void
     {
         $linkRepo = $this->createMock(CalendarLinkRepository::class);

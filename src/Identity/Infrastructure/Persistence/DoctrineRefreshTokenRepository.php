@@ -57,4 +57,14 @@ final class DoctrineRefreshTokenRepository implements RefreshTokenRepository
             $this->entityManager->flush();
         }
     }
+
+    public function deleteByAccountId(UserId $accountId): void
+    {
+        $this->entityManager->createQueryBuilder()
+            ->delete(RefreshTokenDoctrineEntity::class, 'token')
+            ->where('token.accountId = :accountId')
+            ->setParameter('accountId', $accountId->value())
+            ->getQuery()
+            ->execute();
+    }
 }

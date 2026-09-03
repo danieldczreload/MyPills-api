@@ -38,6 +38,7 @@
 | `POST` | `/auth/google` | ❌ | `{ idToken: string }` | Login / registro con Google |
 | `POST` | `/auth/microsoft` | ❌ | `{ idToken: string }` | Login / registro con Microsoft |
 | `POST` | `/auth/refresh` | ❌ | `{ refreshToken: string }` | Refresca el JWT |
+| `POST` | `/auth/logout` | ❌ | `{ refreshToken?: string }` + `Authorization: Bearer` opcional | Revoca el refresh token. `204` idempotente |
 | `GET`  | `/me` | ✅ | — | Datos del usuario autenticado |
 
 ---

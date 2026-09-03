@@ -84,8 +84,11 @@ final class DoctrineRepositoriesTest extends KernelTestCase
         self::assertNotNull($foundToken);
         self::assertTrue($foundToken->accountId()->equals($userId));
 
-        $refreshRepo->delete($foundToken);
+        $secondRaw = bin2hex(random_bytes(32));
+        $refreshRepo->save(RefreshToken::create($userId, $secondRaw));
+        $refreshRepo->deleteByAccountId($userId);
         self::assertNull($refreshRepo->findByToken($rawToken));
+        self::assertNull($refreshRepo->findByToken($secondRaw));
     }
 
     public function testProfileAndTombstoneRepository(): void
@@ -268,7 +271,14 @@ final class DoctrineRepositoriesTest extends KernelTestCase
         $byDoseIds = $mapRepo->findByDoseEventIds(['dose-123']);
         self::assertCount(1, $byDoseIds);
 
-        $mapRepo->delete($mapping);
+        $duplicate = CalendarEventMapping::create('dose-123', 'google', 'g-evt-789');
+        $mapRepo->save($duplicate);
+        $upserted = $mapRepo->findByDoseEventAndProvider('dose-123', 'google');
+        self::assertNotNull($upserted);
+        self::assertSame('g-evt-789', $upserted->externalEventId());
+        self::assertCount(1, $mapRepo->findByDoseEventId('dose-123'));
+
+        $mapRepo->delete($upserted);
         $linkRepo->delete($link);
     }
 
