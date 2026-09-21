@@ -101,8 +101,19 @@ jobs:
     needs: [tests, lint]
     if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
+      - name: Conectar al VPS via WireGuard
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq wireguard
+          sudo install -d -m 700 /etc/wireguard
+          printf '%s\n' "${{ secrets.WG_CONFIG }}" | sudo tee /etc/wireguard/wg-ci.conf >/dev/null
+          sudo chmod 600 /etc/wireguard/wg-ci.conf
+          sudo wg-quick up wg-ci
+          ping -c 3 -W 5 10.10.0.1
+
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.2.0
         with:
