@@ -47,6 +47,7 @@ jobs:
             cd /opt/projects/mypills-api
             git fetch origin main
             git reset --hard origin/main
+            chmod 600 .env 2>/dev/null || true
             sudo systemctl reload-or-restart mypills
             echo "MyPills service successfully reloaded/restarted!"
             sudo systemctl status mypills --no-pager
