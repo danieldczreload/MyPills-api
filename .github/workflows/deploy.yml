@@ -48,7 +48,6 @@ jobs:
             git fetch origin main
             git reset --hard origin/main
             sudo systemctl reload-or-restart mypills
-            # Host .env is COPY'd into the image; tighten host perms only AFTER the build.
             chmod 600 .env 2>/dev/null || true
             echo "MyPills service successfully reloaded/restarted!"
             sudo systemctl status mypills --no-pager
