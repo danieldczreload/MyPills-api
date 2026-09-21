@@ -40,7 +40,7 @@ jobs:
           printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
           ssh-keyscan -p "$VPS_PORT" -t ed25519 "$VPS_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
-          ssh -p "$VPS_PORT" -o IdentitiesOnly=yes -o RequestTTY=no -o StrictHostKeyChecking=accept-new \
+          ssh -p "$VPS_PORT" -o IdentitiesOnly=yes -o RequestTTY=no -o ServerAliveInterval=15 -o ServerAliveCountMax=4 -o StrictHostKeyChecking=accept-new \
             "$VPS_USER@$VPS_HOST" '
             set -e
             echo "Starting deployment on VPS..."
