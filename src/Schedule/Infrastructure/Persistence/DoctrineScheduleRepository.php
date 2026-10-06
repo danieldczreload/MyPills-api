@@ -95,6 +95,7 @@ final class DoctrineScheduleRepository implements ScheduleRepository
         }
 
         $entity->setCancelledAt($schedule->cancelledAt());
+        $entity->setTimezone($schedule->timezone());
 
         $this->entityManager->flush();
     }
@@ -190,7 +191,8 @@ final class DoctrineScheduleRepository implements ScheduleRepository
                 $entity->getCreatedAt(),
                 $entity->getUpdatedAt(),
                 $dose,
-                $entity->getCancelledAt()
+                $entity->getCancelledAt(),
+                $entity->getTimezone()
             );
         }
 
@@ -211,7 +213,8 @@ final class DoctrineScheduleRepository implements ScheduleRepository
                 $entity->getCreatedAt(),
                 $entity->getUpdatedAt(),
                 $dose,
-                $entity->getCancelledAt()
+                $entity->getCancelledAt(),
+                $entity->getTimezone()
             );
         }
 
@@ -232,7 +235,8 @@ final class DoctrineScheduleRepository implements ScheduleRepository
                 $entity->getCreatedAt(),
                 $entity->getUpdatedAt(),
                 $dose,
-                $entity->getCancelledAt()
+                $entity->getCancelledAt(),
+                $entity->getTimezone()
             );
         }
 

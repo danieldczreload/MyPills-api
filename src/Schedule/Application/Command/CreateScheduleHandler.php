@@ -6,7 +6,6 @@ namespace Schedule\Application\Command;
 
 use Medication\Domain\MedicationRepository;
 use Profile\Domain\ProfileRepository;
-use Profile\Domain\ValueObject\Timezone;
 use Schedule\Application\ScheduleView;
 use Schedule\Domain\DailyIntervalSchedule;
 use Schedule\Domain\DailySchedule;
@@ -22,6 +21,7 @@ use Shared\Domain\ValueObject\DoseUnit;
 use Shared\Domain\ValueObject\MedicationId;
 use Shared\Domain\ValueObject\ProfileId;
 use Shared\Domain\ValueObject\ScheduleId;
+use Shared\Domain\ValueObject\Timezone;
 use Symfony\Component\Messenger\Attribute\AsMessageHandler;
 
 #[AsMessageHandler]
@@ -79,9 +79,21 @@ final class CreateScheduleHandler
 
         $scheduleId = ScheduleId::generate();
         $now = new \DateTimeImmutable();
-        $timezone = Timezone::tryParse($profile->timezone()) ?? new Timezone('UTC');
-        $startDate = $timezone->startOfDay($command->startDate);
-        $endDate = $command->endDate !== null ? $timezone->endOfDay($command->endDate) : null;
+        $scheduleTimezone = null;
+        if ($command->timezone !== null && $command->timezone !== '') {
+            $parsedTimezone = Timezone::tryParse($command->timezone);
+            if ($parsedTimezone === null) {
+                return Result::failure(Failure::validation(sprintf(
+                    'Timezone "%s" is not a valid IANA identifier.',
+                    $command->timezone
+                )));
+            }
+            $scheduleTimezone = $parsedTimezone->value();
+        }
+
+        // datetime_immutable drops the offset, so the calendar date is stored as UTC midnight.
+        $startDate = self::calendarDate($command->startDate);
+        $endDate = $command->endDate !== null ? self::calendarDate($command->endDate) : null;
 
         if ($command->type === 'daily') {
             if ($command->timesOfDay === null || count($command->timesOfDay) === 0) {
@@ -100,7 +112,8 @@ final class CreateScheduleHandler
                 $command->clientId,
                 $now,
                 $now,
-                $dose
+                $dose,
+                timezone: $scheduleTimezone
             );
         } elseif ($command->type === 'daily_interval') {
             if ($command->everyHours === null || $command->everyHours <= 0) {
@@ -123,7 +136,8 @@ final class CreateScheduleHandler
                 $command->clientId,
                 $now,
                 $now,
-                $dose
+                $dose,
+                timezone: $scheduleTimezone
             );
         } elseif ($command->type === 'specific_days') {
             if ($command->daysOfWeek === null || count($command->daysOfWeek) === 0) {
@@ -146,7 +160,8 @@ final class CreateScheduleHandler
                 $command->clientId,
                 $now,
                 $now,
-                $dose
+                $dose,
+                timezone: $scheduleTimezone
             );
         } else {
             return Result::failure(Failure::validation('Invalid schedule type.'));
@@ -162,6 +177,11 @@ final class CreateScheduleHandler
         ));
 
         return Result::success(ScheduleView::toArray($schedule));
+    }
+
+    private static function calendarDate(\DateTimeImmutable $date): \DateTimeImmutable
+    {
+        return new \DateTimeImmutable($date->format('Y-m-d'), new \DateTimeZone('UTC'));
     }
 
     /**

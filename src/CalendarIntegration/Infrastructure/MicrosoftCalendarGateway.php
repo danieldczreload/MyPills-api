@@ -6,7 +6,9 @@ namespace CalendarIntegration\Infrastructure;
 
 use CalendarIntegration\Domain\CalendarOAuthTokens;
 use CalendarIntegration\Domain\CalendarProvider;
+use Psr\Log\LoggerInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
+use Symfony\Contracts\HttpClient\ResponseInterface;
 
 final class MicrosoftCalendarGateway implements CalendarProvider
 {
@@ -20,7 +22,8 @@ final class MicrosoftCalendarGateway implements CalendarProvider
         private readonly string $clientId = '',
         private readonly string $clientSecret = '',
         private readonly string $tenantId = 'common',
-        private readonly string $redirectUri = ''
+        private readonly string $redirectUri = '',
+        private readonly ?LoggerInterface $logger = null
     ) {
         $this->tokenEndpoint = new OAuthTokenEndpoint($httpClient);
     }
@@ -102,8 +105,8 @@ final class MicrosoftCalendarGateway implements CalendarProvider
             ],
         ];
 
-        if ($isCreate && $idempotencyKey !== null) {
-            $event['transactionId'] = $idempotencyKey;
+        if ($isCreate && $idempotencyKey !== null && $idempotencyKey !== '') {
+            $event['transactionId'] = self::transactionId($idempotencyKey);
         }
 
         $response = $this->httpClient->request(
@@ -119,10 +122,37 @@ final class MicrosoftCalendarGateway implements CalendarProvider
         );
 
         if ($response->getStatusCode() === 404 && $externalEventId !== null) {
-            return $this->upsertEvent($accessToken, $title, $start, $end, $description, null, $idempotencyKey, $timeZone);
+            // Graph retains transactionId after the event is deleted.
+            return $this->upsertEvent(
+                accessToken: $accessToken,
+                title: $title,
+                start: $start,
+                end: $end,
+                description: $description,
+                externalEventId: null,
+                idempotencyKey: null,
+                timeZone: $timeZone,
+            );
+        }
+
+        if (
+            $isCreate
+            && $idempotencyKey !== null
+            && $idempotencyKey !== ''
+            && self::isDuplicateTransaction($response)
+        ) {
+            $existingId = $this->findEventIdByTransactionId($accessToken, self::transactionId($idempotencyKey));
+            if ($existingId !== null) {
+                return $existingId;
+            }
         }
 
         if ($response->getStatusCode() < 200 || $response->getStatusCode() >= 300) {
+            $this->logger?->error('Microsoft Graph API request failed.', [
+                'status' => $response->getStatusCode(),
+                'body' => substr($response->getContent(false), 0, 500),
+            ]);
+
             throw new \RuntimeException(sprintf(
                 'Microsoft Graph API failed with status %d.',
                 $response->getStatusCode()
@@ -158,5 +188,89 @@ final class MicrosoftCalendarGateway implements CalendarProvider
     private function tokenUrl(): string
     {
         return sprintf('https://login.microsoftonline.com/%s/oauth2/v2.0/token', rawurlencode($this->tenantId));
+    }
+
+    private static function isDuplicateTransaction(ResponseInterface $response): bool
+    {
+        if ($response->getStatusCode() !== 400) {
+            return false;
+        }
+
+        try {
+            $payload = $response->toArray(false);
+        } catch (\JsonException) {
+            return false;
+        }
+
+        $error = $payload['error'] ?? null;
+        if (!is_array($error)) {
+            return false;
+        }
+
+        $code = $error['code'] ?? null;
+
+        return is_string($code) && $code === 'ErrorDuplicateTransactionId';
+    }
+
+    private function findEventIdByTransactionId(string $accessToken, string $transactionId): ?string
+    {
+        $response = $this->httpClient->request(
+            'GET',
+            'https://graph.microsoft.com/v1.0/me/events',
+            [
+                'headers' => [
+                    'Authorization' => 'Bearer ' . $accessToken,
+                ],
+                'query' => [
+                    '$filter' => sprintf("transactionId eq '%s'", $transactionId),
+                    '$select' => 'id',
+                    '$top' => '1',
+                ],
+            ]
+        );
+
+        if ($response->getStatusCode() < 200 || $response->getStatusCode() >= 300) {
+            return null;
+        }
+
+        try {
+            $payload = $response->toArray(false);
+        } catch (\JsonException) {
+            return null;
+        }
+
+        $events = $payload['value'] ?? null;
+        if (!is_array($events)) {
+            return null;
+        }
+
+        $first = $events[0] ?? null;
+        if (!is_array($first)) {
+            return null;
+        }
+
+        $id = $first['id'] ?? null;
+
+        return is_string($id) && $id !== '' ? $id : null;
+    }
+
+    /**
+     * Graph rejects a transactionId that is not an RFC 4122 GUID. The sync key is 32 hex
+     * characters, which Google accepts as an event id and Outlook does not.
+     */
+    private static function transactionId(string $idempotencyKey): string
+    {
+        $hex = strtolower($idempotencyKey);
+        if (preg_match('/^[0-9a-f]{32}$/', $hex) !== 1) {
+            throw new \InvalidArgumentException('Microsoft transactionId requires a 32-character hex idempotency key.');
+        }
+
+        $variantNibble = dechex((hexdec(substr($hex, 16, 1)) & 0x3) | 0x8);
+
+        return substr($hex, 0, 8)
+            . '-' . substr($hex, 8, 4)
+            . '-4' . substr($hex, 13, 3)
+            . '-' . $variantNibble . substr($hex, 17, 3)
+            . '-' . substr($hex, 20, 12);
     }
 }

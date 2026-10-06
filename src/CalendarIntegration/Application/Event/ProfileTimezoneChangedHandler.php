@@ -35,6 +35,10 @@ final class ProfileTimezoneChangedHandler
         $medications = $this->medicationRepository->findByProfileId($profileId);
         $medicationIds = array_map(static fn (Medication $medication): MedicationId => $medication->id(), $medications);
         $schedules = $medicationIds === [] ? [] : $this->scheduleRepository->findByMedicationIds($medicationIds);
+        $schedules = array_values(array_filter(
+            $schedules,
+            static fn (Schedule $schedule): bool => $schedule->followsProfileTimezone()
+        ));
         $scheduleIds = array_map(static fn (Schedule $schedule) => $schedule->id(), $schedules);
 
         $pendingDoseEvents = $scheduleIds === [] ? [] : $this->doseEventRepository->findPendingByScheduleIds($scheduleIds);

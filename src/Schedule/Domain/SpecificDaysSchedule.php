@@ -26,9 +26,10 @@ final class SpecificDaysSchedule extends Schedule
         \DateTimeImmutable $createdAt,
         \DateTimeImmutable $updatedAt,
         ?Dose $dose = null,
-        ?\DateTimeImmutable $cancelledAt = null
+        ?\DateTimeImmutable $cancelledAt = null,
+        ?string $timezone = null
     ) {
-        parent::__construct($id, $medicationId, $startDate, $endDate, $clientId, $createdAt, $updatedAt, $dose, $cancelledAt);
+        parent::__construct($id, $medicationId, $startDate, $endDate, $clientId, $createdAt, $updatedAt, $dose, $cancelledAt, $timezone);
         foreach ($this->daysOfWeek as $day) {
             if ($day < 1 || $day > 7) {
                 throw new \InvalidArgumentException('Day of week must be between 1 and 7.');

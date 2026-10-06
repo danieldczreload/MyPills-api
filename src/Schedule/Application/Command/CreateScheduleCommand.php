@@ -26,7 +26,8 @@ final class CreateScheduleCommand
         public readonly ?array $startAt = null,
         public readonly ?array $endAt = null,
         public readonly ?array $daysOfWeek = null,
-        public readonly ?string $clientId = null
+        public readonly ?string $clientId = null,
+        public readonly ?string $timezone = null
     ) {
     }
 }

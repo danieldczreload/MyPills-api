@@ -8,10 +8,10 @@ use DoseEvent\Application\MaterializeUpcomingOccurrences;
 use DoseEvent\Domain\DoseEventsExpandedEvent;
 use Medication\Domain\MedicationRepository;
 use Profile\Domain\ProfileRepository;
-use Profile\Domain\ValueObject\Timezone;
 use Schedule\Domain\ScheduleRepository;
 use Shared\Application\Bus\EventBus;
 use Shared\Domain\Result;
+use Shared\Domain\ValueObject\Timezone;
 use Symfony\Component\Messenger\Attribute\AsMessageHandler;
 
 #[AsMessageHandler]
@@ -46,15 +46,17 @@ final class ExpandDoseEventsHandler
 
             ++$scanned;
             $profileId = null;
-            $timezone = new \DateTimeZone('UTC');
+            $profileTimezone = 'UTC';
             $medication = $this->medicationRepository->findById($schedule->medicationId());
             if ($medication !== null) {
                 $profile = $this->profileRepository->findById($medication->profileId());
                 if ($profile !== null) {
                     $profileId = $profile->id()->value();
-                    $timezone = Timezone::dateTimeZoneOrUtc($profile->timezone());
+                    $profileTimezone = $profile->timezone();
                 }
             }
+
+            $timezone = $schedule->zone(Timezone::dateTimeZoneOrUtc($profileTimezone));
 
             $newCount = $this->materializeUpcomingOccurrences->materialize($schedule, $timezone, $now, $to);
             $created += $newCount;

@@ -75,4 +75,50 @@ final class ProfileTimezoneChangedHandlerTest extends TestCase
         );
         $handler(new ProfileTimezoneChangedEvent('prof-1', 'UTC', 'America/El_Salvador'));
     }
+
+    public function testLeavesCalendarEventsForSchedulesThatStoreTheirOwnTimezone(): void
+    {
+        $profileId = new ProfileId('prof-1');
+        $medicationId = new MedicationId('med-1');
+        $medicationRepo = $this->createMock(MedicationRepository::class);
+        $medicationRepo->method('findByProfileId')->willReturn([
+            Medication::create($medicationId, $profileId, 'Aspirin'),
+        ]);
+        $scheduleRepo = $this->createMock(ScheduleRepository::class);
+        $scheduleRepo->method('findByMedicationIds')->willReturn([
+            new DailySchedule(
+                new ScheduleId('sch-1'),
+                $medicationId,
+                [new TimeOfDay(8, 0)],
+                new \DateTimeImmutable(),
+                null,
+                null,
+                new \DateTimeImmutable(),
+                new \DateTimeImmutable(),
+                null,
+                null,
+                'America/El_Salvador'
+            ),
+        ]);
+        $doseRepo = $this->createMock(DoseEventRepository::class);
+        $doseRepo->expects(self::never())->method('findPendingByScheduleIds');
+        $mapRepo = $this->createMock(CalendarEventMappingRepository::class);
+        $mapRepo->expects(self::never())->method('findByDoseEventIds');
+        $google = $this->createMock(CalendarProvider::class);
+        $google->expects(self::never())->method('deleteEvent');
+
+        $handler = new ProfileTimezoneChangedHandler(
+            $medicationRepo,
+            $scheduleRepo,
+            $doseRepo,
+            $mapRepo,
+            new CalendarEventRemover(
+                $this->createMock(CalendarLinkRepository::class),
+                $mapRepo,
+                new CalendarProviderResolver($google, $this->createMock(CalendarProvider::class)),
+                $this->createMock(TokenVault::class)
+            )
+        );
+        $handler(new ProfileTimezoneChangedEvent('prof-1', 'UTC', 'America/Chicago'));
+    }
 }

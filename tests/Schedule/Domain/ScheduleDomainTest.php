@@ -154,4 +154,51 @@ final class ScheduleDomainTest extends TestCase
             new \DateTimeImmutable()
         );
     }
+
+    public function testPinnedTimezoneIgnoresProfileZone(): void
+    {
+        $schedule = $this->dailySchedule('America/El_Salvador');
+
+        self::assertFalse($schedule->followsProfileTimezone());
+        self::assertSame('America/El_Salvador', $schedule->zone(new \DateTimeZone('UTC'))->getName());
+        self::assertSame('Etc/GMT+6', $this->dailySchedule('Etc/GMT+6')->zone(new \DateTimeZone('UTC'))->getName());
+    }
+
+    public function testBlankTimezoneFollowsProfileZone(): void
+    {
+        $profileZone = new \DateTimeZone('America/Chicago');
+
+        self::assertNull($this->dailySchedule(null)->timezone());
+        self::assertTrue($this->dailySchedule(null)->followsProfileTimezone());
+        self::assertSame('America/Chicago', $this->dailySchedule(null)->zone($profileZone)->getName());
+        $blank = $this->dailySchedule('');
+        self::assertNull($blank->timezone());
+        self::assertTrue($blank->followsProfileTimezone());
+        self::assertSame('America/Chicago', $blank->zone($profileZone)->getName());
+    }
+
+    public function testInvalidPinnedTimezoneFailsAtConstruction(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Timezone "CST" is not a valid IANA identifier.');
+
+        $this->dailySchedule('CST');
+    }
+
+    private function dailySchedule(?string $timezone): DailySchedule
+    {
+        return new DailySchedule(
+            ScheduleId::generate(),
+            MedicationId::generate(),
+            [new TimeOfDay(8, 0)],
+            new \DateTimeImmutable('2026-10-06'),
+            null,
+            null,
+            new \DateTimeImmutable('2026-10-06'),
+            new \DateTimeImmutable('2026-10-06'),
+            null,
+            null,
+            $timezone
+        );
+    }
 }

@@ -48,7 +48,8 @@ final class ScheduleController extends ApiController
          *     daysOfWeek?: mixed,
          *     clientId?: mixed,
          *     doseAmount?: mixed,
-         *     doseUnit?: mixed
+         *     doseUnit?: mixed,
+         *     timezone?: mixed
          * } $data */
         $data = json_decode($request->getContent(), true) ?? [];
 
@@ -83,6 +84,9 @@ final class ScheduleController extends ApiController
         $clientId = isset($data['clientId']) && is_string($data['clientId']) ? $data['clientId'] : null;
         $doseUnit = is_string($data['doseUnit'] ?? null) ? $data['doseUnit'] : '';
         $doseAmount = $this->stringifyDoseAmount($data['doseAmount'] ?? null);
+        $timezone = isset($data['timezone']) && is_string($data['timezone']) && $data['timezone'] !== ''
+            ? $data['timezone']
+            : null;
 
         $command = new CreateScheduleCommand(
             $id,
@@ -98,7 +102,8 @@ final class ScheduleController extends ApiController
             $startAt,
             $endAt,
             $daysOfWeek,
-            $clientId
+            $clientId,
+            $timezone
         );
 
         $result = $this->commandBus->dispatch($command);

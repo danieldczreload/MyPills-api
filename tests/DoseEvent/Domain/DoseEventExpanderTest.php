@@ -278,4 +278,28 @@ final class DoseEventExpanderTest extends TestCase
             '2026-03-09 08:00',
         ], $localTimes);
     }
+
+    public function testExpandDailyWallClockInElSalvadorIsUtcPlusSix(): void
+    {
+        $tz = new \DateTimeZone('America/El_Salvador');
+        $schedule = new DailySchedule(
+            $this->scheduleId,
+            $this->medicationId,
+            [new TimeOfDay(8, 0), new TimeOfDay(20, 0)],
+            new \DateTimeImmutable('2026-10-06 00:00:00', $this->utc),
+            new \DateTimeImmutable('2026-10-20 00:00:00', $this->utc),
+            'client-sv-hours',
+            new \DateTimeImmutable('2026-10-06', $this->utc),
+            new \DateTimeImmutable('2026-10-06', $this->utc)
+        );
+
+        $from = new \DateTimeImmutable('2026-10-06 00:00:00', $tz);
+        $to = new \DateTimeImmutable('2026-10-06 23:59:59', $tz);
+        $events = $this->expander->expand($schedule, $from, $to, $tz);
+
+        self::assertCount(2, $events);
+        self::assertSame('2026-10-06 14:00:00', $events[0]->scheduledAt()->format('Y-m-d H:i:s'));
+        self::assertSame('2026-10-07 02:00:00', $events[1]->scheduledAt()->format('Y-m-d H:i:s'));
+        self::assertSame('UTC', $events[0]->scheduledAt()->getTimezone()->getName());
+    }
 }

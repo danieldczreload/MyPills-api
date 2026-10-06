@@ -7,12 +7,12 @@ namespace DoseEvent\Application\Event;
 use DoseEvent\Application\MaterializeUpcomingOccurrences;
 use DoseEvent\Domain\DoseEventsExpandedEvent;
 use Profile\Domain\ProfileRepository;
-use Profile\Domain\ValueObject\Timezone;
 use Schedule\Domain\ScheduleCreatedEvent;
 use Schedule\Domain\ScheduleRepository;
 use Shared\Application\Bus\EventBus;
 use Shared\Domain\ValueObject\ProfileId;
 use Shared\Domain\ValueObject\ScheduleId;
+use Shared\Domain\ValueObject\Timezone;
 use Symfony\Component\Messenger\Attribute\AsMessageHandler;
 
 #[AsMessageHandler]
@@ -34,7 +34,8 @@ final class ScheduleCreatedHandler
         }
 
         $profile = $this->profileRepository->findById(new ProfileId($event->profileId));
-        $timezone = Timezone::dateTimeZoneOrUtc($profile?->timezone() ?? 'UTC');
+        $profileZone = Timezone::dateTimeZoneOrUtc($profile?->timezone() ?? 'UTC');
+        $timezone = $schedule->zone($profileZone);
 
         $now = new \DateTimeImmutable();
         $to = $now->modify('+14 days');

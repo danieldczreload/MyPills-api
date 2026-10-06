@@ -6,10 +6,10 @@ namespace Profile\Application\Command;
 
 use Profile\Domain\PatientProfile;
 use Profile\Domain\ProfileRepository;
-use Profile\Domain\ValueObject\Timezone;
 use Shared\Domain\Failure;
 use Shared\Domain\Result;
 use Shared\Domain\ValueObject\ProfileId;
+use Shared\Domain\ValueObject\Timezone;
 use Shared\Domain\ValueObject\UserId;
 use Symfony\Component\Messenger\Attribute\AsMessageHandler;
 

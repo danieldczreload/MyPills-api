@@ -10,12 +10,12 @@ use DoseEvent\Domain\DoseEventsExpandedEvent;
 use Medication\Domain\Medication;
 use Medication\Domain\MedicationRepository;
 use Profile\Domain\ProfileTimezoneChangedEvent;
-use Profile\Domain\ValueObject\Timezone;
 use Schedule\Domain\Schedule;
 use Schedule\Domain\ScheduleRepository;
 use Shared\Application\Bus\EventBus;
 use Shared\Domain\ValueObject\MedicationId;
 use Shared\Domain\ValueObject\ProfileId;
+use Shared\Domain\ValueObject\Timezone;
 use Symfony\Component\Messenger\Attribute\AsMessageHandler;
 
 #[AsMessageHandler(priority: 0)]
@@ -39,7 +39,7 @@ final class ProfileTimezoneChangedHandler
         /** @var Schedule[] $activeSchedules */
         $activeSchedules = array_values(array_filter(
             $schedules,
-            static fn (Schedule $schedule): bool => !$schedule->isCancelled()
+            static fn (Schedule $schedule): bool => !$schedule->isCancelled() && $schedule->followsProfileTimezone()
         ));
         $scheduleIds = array_map(static fn (Schedule $schedule) => $schedule->id(), $activeSchedules);
 

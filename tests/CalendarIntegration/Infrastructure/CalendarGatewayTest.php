@@ -7,6 +7,7 @@ namespace App\Tests\CalendarIntegration\Infrastructure;
 use CalendarIntegration\Infrastructure\GoogleCalendarGateway;
 use CalendarIntegration\Infrastructure\MicrosoftCalendarGateway;
 use PHPUnit\Framework\TestCase;
+use Psr\Log\LoggerInterface;
 use Symfony\Component\HttpClient\MockHttpClient;
 use Symfony\Component\HttpClient\Response\MockResponse;
 
@@ -180,7 +181,7 @@ final class CalendarGatewayTest extends TestCase
             new \DateTimeImmutable('2026-08-03T08:30:00-06:00'),
             'Instructions',
             null,
-            'stable-event-key'
+            str_repeat('ab', 16)
         );
 
         self::assertSame('POST', $requests[0][0]);
@@ -193,7 +194,71 @@ final class CalendarGatewayTest extends TestCase
         self::assertSame('Take medication', $payload['subject']);
         self::assertSame('2026-08-03T14:00:00', $payload['start']['dateTime']);
         self::assertSame('UTC', $payload['start']['timeZone']);
-        self::assertSame('stable-event-key', $payload['transactionId']);
+        self::assertMatchesRegularExpression(
+            '/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/',
+            $payload['transactionId']
+        );
+    }
+
+    public function testMicrosoftTransactionIdIsAStableGuidDerivedFromTheIdempotencyKey(): void
+    {
+        $transactionIds = [];
+        $httpClient = new MockHttpClient(function (string $method, string $url, array $options) use (&$transactionIds): MockResponse {
+            /** @var array{transactionId: string} $payload */
+            $payload = json_decode($options['body'], true, 512, JSON_THROW_ON_ERROR);
+            $transactionIds[] = $payload['transactionId'];
+
+            return new MockResponse(json_encode(['id' => 'microsoft-event-id'], JSON_THROW_ON_ERROR));
+        });
+        $gateway = new MicrosoftCalendarGateway($httpClient, 'client-id', 'client-secret', 'common');
+        $key = substr(hash('sha256', 'calendar-event:microsoft:dose-1'), 0, 32);
+
+        $gateway->upsertEvent(
+            'access-token',
+            'Take medication',
+            new \DateTimeImmutable('2026-10-06T14:00:00+00:00'),
+            new \DateTimeImmutable('2026-10-06T14:30:00+00:00'),
+            'Instructions',
+            null,
+            $key,
+            'America/El_Salvador'
+        );
+        $gateway->upsertEvent(
+            'access-token',
+            'Take medication',
+            new \DateTimeImmutable('2026-10-06T14:00:00+00:00'),
+            new \DateTimeImmutable('2026-10-06T14:30:00+00:00'),
+            'Instructions',
+            null,
+            $key,
+            'America/El_Salvador'
+        );
+
+        self::assertCount(2, $transactionIds);
+        self::assertSame($transactionIds[0], $transactionIds[1]);
+        self::assertStringStartsWith(substr($key, 0, 8) . '-', $transactionIds[0]);
+        self::assertMatchesRegularExpression(
+            '/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/',
+            $transactionIds[0]
+        );
+    }
+
+    public function testMicrosoftRejectsAnIdempotencyKeyThatIsNot32Hex(): void
+    {
+        $gateway = new MicrosoftCalendarGateway(new MockHttpClient(), 'client-id', 'client-secret', 'common');
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Microsoft transactionId requires a 32-character hex idempotency key.');
+
+        $gateway->upsertEvent(
+            'access-token',
+            'Take medication',
+            new \DateTimeImmutable('2026-10-06T14:00:00+00:00'),
+            new \DateTimeImmutable('2026-10-06T14:30:00+00:00'),
+            'Instructions',
+            null,
+            'stable-event-key'
+        );
     }
 
     public function testMicrosoftWritesUtcEvenWhenIanaTimeZoneIsPassed(): void
@@ -220,7 +285,7 @@ final class CalendarGatewayTest extends TestCase
             new \DateTimeImmutable('2026-08-29T22:55:00+00:00'),
             'Instructions',
             null,
-            'stable-event-key',
+            str_repeat('ab', 16),
             'America/El_Salvador'
         );
 
@@ -510,23 +575,140 @@ final class CalendarGatewayTest extends TestCase
             new \DateTimeImmutable('2026-08-03T08:00:00+00:00'),
             new \DateTimeImmutable('2026-08-03T08:30:00+00:00'),
             'Instructions',
-            'old-ms-id'
+            'old-ms-id',
+            str_repeat('ab', 16)
         );
 
         self::assertSame('ms-created-id', $eventId);
         self::assertSame('PATCH', $requests[0][0]);
         self::assertSame('POST', $requests[1][0]);
+        /** @var array<string, mixed> $created */
+        $created = json_decode($requests[1][2]['body'], true, 512, JSON_THROW_ON_ERROR);
+        self::assertArrayNotHasKey('transactionId', $created);
+    }
+
+    public function testMicrosoftUpsertResolvesExistingEventWhenTransactionIdIsAlreadyUsed(): void
+    {
+        $requests = [];
+        $responses = [
+            new MockResponse(json_encode([
+                'error' => [
+                    'code' => 'ErrorDuplicateTransactionId',
+                    'message' => 'The TransactionId specified in the request has already been used to create a different event.',
+                ],
+            ], JSON_THROW_ON_ERROR), ['http_code' => 400]),
+            new MockResponse(json_encode([
+                'value' => [
+                    ['id' => 'existing-ms-event'],
+                ],
+            ], JSON_THROW_ON_ERROR)),
+        ];
+        $httpClient = new MockHttpClient(function (string $method, string $url, array $options) use (&$requests, &$responses): MockResponse {
+            $requests[] = [$method, $url, $options];
+            $response = array_shift($responses);
+            if (!$response instanceof MockResponse) {
+                throw new \LogicException('Test response queue is empty.');
+            }
+
+            return $response;
+        });
+        $logger = $this->createMock(LoggerInterface::class);
+        $logger->expects(self::never())->method('error');
+        $gateway = new MicrosoftCalendarGateway(
+            $httpClient,
+            'client-id',
+            'client-secret',
+            'common',
+            'https://redirect',
+            $logger
+        );
+
+        $eventId = $gateway->upsertEvent(
+            'access-token',
+            'Take medication',
+            new \DateTimeImmutable('2026-08-03T08:00:00+00:00'),
+            new \DateTimeImmutable('2026-08-03T08:30:00+00:00'),
+            'Instructions',
+            null,
+            str_repeat('cd', 16)
+        );
+
+        self::assertSame('existing-ms-event', $eventId);
+        self::assertSame('POST', $requests[0][0]);
+        self::assertSame('GET', $requests[1][0]);
+        /** @var array{transactionId: string} $created */
+        $created = json_decode($requests[0][2]['body'], true, 512, JSON_THROW_ON_ERROR);
+        /** @var array<string, mixed> $query */
+        $query = $requests[1][2]['query'];
+        self::assertSame("transactionId eq '{$created['transactionId']}'", $query['$filter']);
+    }
+
+    public function testMicrosoftUpsertThrowsWhenDuplicateTransactionIdCannotBeResolved(): void
+    {
+        $httpClient = new MockHttpClient([
+            new MockResponse(json_encode([
+                'error' => [
+                    'code' => 'ErrorDuplicateTransactionId',
+                    'message' => 'already used',
+                ],
+            ], JSON_THROW_ON_ERROR), ['http_code' => 400]),
+            new MockResponse(json_encode(['value' => []], JSON_THROW_ON_ERROR)),
+        ]);
+        $logger = $this->createMock(LoggerInterface::class);
+        $logger->expects(self::once())->method('error')->with(
+            'Microsoft Graph API request failed.',
+            self::callback(static function (array $context): bool {
+                return ($context['status'] ?? null) === 400
+                    && str_contains((string) ($context['body'] ?? ''), 'ErrorDuplicateTransactionId');
+            })
+        );
+        $gateway = new MicrosoftCalendarGateway(
+            $httpClient,
+            'client-id',
+            'client-secret',
+            'common',
+            'https://redirect',
+            $logger
+        );
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('Microsoft Graph API failed with status 400.');
+
+        $gateway->upsertEvent(
+            'access-token',
+            'Take medication',
+            new \DateTimeImmutable('2026-08-03T08:00:00+00:00'),
+            new \DateTimeImmutable('2026-08-03T08:30:00+00:00'),
+            'Instructions',
+            null,
+            str_repeat('ef', 16)
+        );
     }
 
     public function testMicrosoftUpsertEventThrowsOnServerError(): void
     {
         $httpClient = new MockHttpClient([
-            new MockResponse('Server Error', ['http_code' => 502]),
+            new MockResponse('{"error":{"code":"ErrorInvalidRequest","message":"secret body"}}', ['http_code' => 502]),
         ]);
-        $gateway = new MicrosoftCalendarGateway($httpClient, 'client-id', 'client-secret', 'common', 'https://redirect');
+        $logger = $this->createMock(LoggerInterface::class);
+        $logger->expects(self::once())->method('error')->with(
+            'Microsoft Graph API request failed.',
+            self::callback(static function (array $context): bool {
+                return ($context['status'] ?? null) === 502
+                    && str_contains((string) ($context['body'] ?? ''), 'secret body');
+            })
+        );
+        $gateway = new MicrosoftCalendarGateway(
+            $httpClient,
+            'client-id',
+            'client-secret',
+            'common',
+            'https://redirect',
+            $logger
+        );
 
         $this->expectException(\RuntimeException::class);
-        $this->expectExceptionMessage('Microsoft Graph API failed with status 502.');
+        $this->expectExceptionMessageMatches('/^Microsoft Graph API failed with status 502\.$/');
 
         $gateway->upsertEvent(
             'access-token',

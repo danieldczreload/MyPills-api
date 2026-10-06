@@ -2,16 +2,18 @@
 
 declare(strict_types=1);
 
-namespace Profile\Domain\ValueObject;
+namespace Shared\Domain\ValueObject;
 
 final readonly class Timezone
 {
     public function __construct(
         private string $value
     ) {
-        if (!in_array($this->value, timezone_identifiers_list(), true)) {
-            throw new \InvalidArgumentException(sprintf('Timezone "%s" is not a valid IANA identifier.', $this->value));
+        if (in_array($this->value, timezone_identifiers_list(), true) || self::isPosixGmtOffset($this->value)) {
+            return;
         }
+
+        throw new \InvalidArgumentException(sprintf('Timezone "%s" is not a valid IANA identifier.', $this->value));
     }
 
     public function value(): string
@@ -38,13 +40,21 @@ final readonly class Timezone
         return self::tryParse($value)?->toDateTimeZone() ?? new \DateTimeZone('UTC');
     }
 
-    public function startOfDay(\DateTimeImmutable $date): \DateTimeImmutable
+    /**
+     * The default identifier list omits POSIX Etc/GMT±N links. Android sends Etc/GMT+6 for a fixed UTC−6 offset.
+     */
+    private static function isPosixGmtOffset(string $value): bool
     {
-        return new \DateTimeImmutable($date->format('Y-m-d'), $this->toDateTimeZone());
-    }
+        if (preg_match('/^Etc\/GMT[+-]\d{1,2}$/', $value) !== 1) {
+            return false;
+        }
 
-    public function endOfDay(\DateTimeImmutable $date): \DateTimeImmutable
-    {
-        return $this->startOfDay($date)->setTime(23, 59, 59);
+        try {
+            new \DateTimeZone($value);
+
+            return true;
+        } catch (\Exception) {
+            return false;
+        }
     }
 }

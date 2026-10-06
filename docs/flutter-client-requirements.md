@@ -436,13 +436,14 @@ Intended contract:
 
 | Field | Meaning |
 |-------|---------|
-| `timezone` on the profile | IANA zone. Default `UTC` if omitted. |
-| `timesOfDay` / `startAt` / `endAt` | Local wall-clock time in that zone. Do not pre-convert to UTC. |
-| `startDate` / `endDate` | Calendar dates (`YYYY-MM-DD`) in the profile timezone, not instants. |
+| `timezone` on the profile | IANA zone. Default `UTC` if omitted. Fallback when a schedule has no zone of its own. |
+| `timezone` on `POST /profiles/{id}/schedules` | IANA zone for that schedule. Omit it to inherit the profile zone. `hour` and `minute` stay wall-clock in this zone. |
+| `timesOfDay` / `startAt` / `endAt` | Local wall-clock time in the schedule zone, or the profile zone when the schedule has none. Do not pre-convert to UTC. |
+| `startDate` / `endDate` | Calendar dates (`YYYY-MM-DD`). Stored and returned as UTC midnight of that date (`2026-10-06T00:00:00+00:00`). The offset is not the schedule zone. |
 
-Obtain the zone with `flutter_timezone` (or equivalent), not `DateTime.timeZoneName` (that often returns `CST`).
+Obtain the zone with `flutter_timezone` (or equivalent), not `DateTime.timeZoneName` (that often returns `CST`). `Etc/GMT+6` is a valid IANA id and means UTC−6.
 
-On this branch the field is stored and returned, but schedule expansion does **not** yet interpret `timesOfDay` in the profile zone (it still treats them as UTC). Send the IANA value now so expansion can honor it once enabled. Until then, DST and travel can still produce incorrect dose instants.
+Expansion stores each occurrence as a UTC instant. 08:00 in `America/El_Salvador` is `14:00:00Z`. A later profile timezone change rebuilds only schedules whose `timezone` is null.
 
 ## 10. Acceptance Criteria
 
@@ -463,7 +464,6 @@ The Flutter client is ready for release when:
 ## 11. Backend Gaps Before Flutter Production
 
 - Add own-authentication endpoints and disable legacy social-login routes.
-- Use the profile IANA timezone when expanding schedules (the field exists; expansion on this branch still treats `timesOfDay` as UTC).
 - Define notification payload and deep-link schema.
 - Move calendar synchronization and push delivery to asynchronous jobs with retry/outbox handling.
 - Rotate the OAuth and token-vault credentials independently for staging and production.

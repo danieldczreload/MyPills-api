@@ -286,4 +286,97 @@ final class CalendarHandlersTest extends TestCase
         $res = $handler(new SyncCalendarCommand('acc-1', 'prof-1'));
         self::assertTrue($res->isSuccess());
     }
+
+    public function testSyncCalendarPrefersScheduleTimezoneOverProfileUtc(): void
+    {
+        $linkRepo = $this->createMock(CalendarLinkRepository::class);
+        $mapRepo = $this->createMock(CalendarEventMappingRepository::class);
+        $profileRepo = $this->createMock(ProfileRepository::class);
+        $medRepo = $this->createMock(MedicationRepository::class);
+        $schedRepo = $this->createMock(ScheduleRepository::class);
+        $doseRepo = $this->createMock(DoseEventRepository::class);
+        $google = $this->createMock(CalendarProvider::class);
+        $microsoft = $this->createMock(CalendarProvider::class);
+        $resolver = new CalendarProviderResolver($google, $microsoft);
+        $vault = $this->createMock(TokenVault::class);
+
+        $handler = new SyncCalendarHandler(
+            $linkRepo,
+            $mapRepo,
+            $profileRepo,
+            $medRepo,
+            $schedRepo,
+            $doseRepo,
+            $resolver,
+            $vault
+        );
+
+        $profile = new PatientProfile(
+            new ProfileId('prof-1'),
+            new UserId('acc-1'),
+            'Name',
+            new \DateTimeImmutable('1990-01-01'),
+            'male',
+            null,
+            new \DateTimeImmutable(),
+            new \DateTimeImmutable(),
+            'UTC'
+        );
+        $profileRepo->method('findById')->willReturn($profile);
+        $linkRepo->method('findByProfile')->willReturn([
+            CalendarLink::create(new ProfileId('prof-1'), 'google', 'enc-refresh'),
+        ]);
+
+        $medId = new MedicationId('med-1');
+        $medRepo->method('findByProfileId')->willReturn([
+            Medication::create($medId, new ProfileId('prof-1'), 'Aspirin', 'instructions'),
+        ]);
+        $schedRepo->method('findByMedicationIds')->willReturn([
+            new DailySchedule(
+                new ScheduleId('sch-1'),
+                $medId,
+                [new TimeOfDay(8, 0)],
+                new \DateTimeImmutable(),
+                null,
+                null,
+                new \DateTimeImmutable(),
+                new \DateTimeImmutable(),
+                \Shared\Domain\ValueObject\Dose::of('500', 'mg'),
+                null,
+                'America/El_Salvador'
+            ),
+        ]);
+        $doseRepo->method('findByScheduleIdsAndRange')->willReturn([
+            DoseEvent::create(
+                new DoseEventId('dose-1'),
+                $medId,
+                new ScheduleId('sch-1'),
+                new \DateTimeImmutable('2026-10-06T14:00:00+00:00')
+            ),
+        ]);
+        $google->method('refreshAccessToken')->willReturn(new CalendarOAuthTokens('access-1', null));
+        $google->expects(self::once())
+            ->method('upsertEvent')
+            ->with(
+                'access-1',
+                'Take Medication: Aspirin (500 mg)',
+                self::callback(static function (\DateTimeImmutable $start): bool {
+                    return $start->format('Y-m-d\TH:i:sP') === '2026-10-06T08:00:00-06:00'
+                        && $start->getTimezone()->getName() === 'America/El_Salvador';
+                }),
+                self::callback(static function (\DateTimeImmutable $end): bool {
+                    return $end->format('Y-m-d\TH:i:sP') === '2026-10-06T08:30:00-06:00';
+                }),
+                self::anything(),
+                null,
+                self::isType('string'),
+                'America/El_Salvador'
+            )
+            ->willReturn('ext-evt-1');
+        $vault->method('decrypt')->willReturn('dec-refresh');
+        $mapRepo->method('findByDoseEvents')->willReturn([]);
+
+        $res = $handler(new SyncCalendarCommand('acc-1', 'prof-1'));
+        self::assertTrue($res->isSuccess());
+    }
 }

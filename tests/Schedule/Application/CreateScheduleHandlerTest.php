@@ -207,7 +207,7 @@ final class CreateScheduleHandlerTest extends TestCase
         self::assertSame(['amount' => 1, 'unit' => 'tablet', 'display' => '1 tablet'], $schedData['dose']);
     }
 
-    public function testCreateDailyScheduleAnchorsDatesToProfileTimezone(): void
+    public function testCreateDailyScheduleKeepsCalendarDatesAtUtcMidnight(): void
     {
         $profile = new PatientProfile(
             new ProfileId('prof-1'),
@@ -227,12 +227,14 @@ final class CreateScheduleHandlerTest extends TestCase
 
         $this->scheduleRepo->expects(self::once())->method('save')->with(self::callback(
             static function (Schedule $schedule): bool {
-                $tz = new \DateTimeZone('America/El_Salvador');
-                $start = $schedule->startDate()->setTimezone($tz);
-                $end = $schedule->endDate()?->setTimezone($tz);
-                self::assertSame('2026-08-28 00:00:00', $start->format('Y-m-d H:i:s'));
-                self::assertNotNull($end);
-                self::assertSame('2026-08-30 23:59:59', $end->format('Y-m-d H:i:s'));
+                self::assertNull($schedule->timezone());
+                self::assertTrue($schedule->followsProfileTimezone());
+                $endDate = $schedule->endDate();
+                self::assertInstanceOf(\DateTimeImmutable::class, $endDate);
+                self::assertSame('UTC', $schedule->startDate()->getTimezone()->getName());
+                self::assertSame('2026-08-28 00:00:00', $schedule->startDate()->format('Y-m-d H:i:s'));
+                self::assertSame('UTC', $endDate->getTimezone()->getName());
+                self::assertSame('2026-08-30 00:00:00', $endDate->format('Y-m-d H:i:s'));
 
                 return true;
             }
@@ -315,5 +317,118 @@ final class CreateScheduleHandlerTest extends TestCase
 
         self::assertTrue($result->isFailure());
         self::assertSame('Invalid dose unit.', $result->getFailure()->getMessage());
+    }
+
+    public function testCreateDailyScheduleStoresRequestTimezoneOverProfileUtc(): void
+    {
+        $profile = new PatientProfile(new ProfileId('prof-1'), new UserId('acc-1'), 'Name', new \DateTimeImmutable('1990-01-01'), 'male', null, new \DateTimeImmutable(), new \DateTimeImmutable());
+        $this->profileRepo->method('findById')->willReturn($profile);
+        $medication = new Medication(new MedicationId('med-1'), new ProfileId('prof-1'), 'Name', 'pill', 'instr', null, new \DateTimeImmutable(), new \DateTimeImmutable());
+        $this->medicationRepo->method('findById')->willReturn($medication);
+
+        $this->scheduleRepo->expects(self::once())->method('save')->with(self::callback(
+            static function (Schedule $schedule): bool {
+                self::assertSame('America/El_Salvador', $schedule->timezone());
+                self::assertFalse($schedule->followsProfileTimezone());
+                self::assertSame('UTC', $schedule->startDate()->getTimezone()->getName());
+                self::assertSame('2026-10-06 00:00:00', $schedule->startDate()->format('Y-m-d H:i:s'));
+                self::assertSame('2026-10-20 00:00:00', $schedule->endDate()?->format('Y-m-d H:i:s'));
+
+                return true;
+            }
+        ));
+        $this->eventBus->expects(self::once())->method('publish');
+
+        $result = ($this->handler)(new CreateScheduleCommand(
+            'prof-1',
+            'acc-1',
+            'med-1',
+            'daily',
+            new \DateTimeImmutable('2026-10-06'),
+            '500',
+            'mg',
+            new \DateTimeImmutable('2026-10-20'),
+            [['hour' => 8, 'minute' => 0], ['hour' => 20, 'minute' => 0]],
+            timezone: 'America/El_Salvador'
+        ));
+
+        self::assertTrue($result->isSuccess());
+        /** @var array<string, mixed> $schedData */
+        $schedData = $result->getValue();
+        self::assertSame('America/El_Salvador', $schedData['timezone']);
+        self::assertSame('2026-10-06T00:00:00+00:00', $schedData['startDate']);
+        self::assertSame('2026-10-20T00:00:00+00:00', $schedData['endDate']);
+    }
+
+    public function testCreateScheduleRejectsInvalidTimezone(): void
+    {
+        $profile = new PatientProfile(new ProfileId('prof-1'), new UserId('acc-1'), 'Name', new \DateTimeImmutable('1990-01-01'), 'male', null, new \DateTimeImmutable(), new \DateTimeImmutable());
+        $this->profileRepo->method('findById')->willReturn($profile);
+        $medication = new Medication(new MedicationId('med-1'), new ProfileId('prof-1'), 'Name', 'pill', 'instr', null, new \DateTimeImmutable(), new \DateTimeImmutable());
+        $this->medicationRepo->method('findById')->willReturn($medication);
+        $this->scheduleRepo->expects(self::never())->method('save');
+
+        $result = ($this->handler)(new CreateScheduleCommand(
+            'prof-1',
+            'acc-1',
+            'med-1',
+            'daily',
+            new \DateTimeImmutable('2026-10-06'),
+            '500',
+            'mg',
+            timesOfDay: [['hour' => 8, 'minute' => 0]],
+            timezone: 'CST'
+        ));
+
+        self::assertTrue($result->isFailure());
+        self::assertSame('Timezone "CST" is not a valid IANA identifier.', $result->getFailure()->getMessage());
+    }
+
+    public function testCreateScheduleWithoutTimezoneStoresNullAndUsesProfileZone(): void
+    {
+        $profile = new PatientProfile(
+            new ProfileId('prof-1'),
+            new UserId('acc-1'),
+            'Name',
+            new \DateTimeImmutable('1990-01-01'),
+            'male',
+            null,
+            new \DateTimeImmutable(),
+            new \DateTimeImmutable(),
+            'America/El_Salvador'
+        );
+        $this->profileRepo->method('findById')->willReturn($profile);
+        $medication = new Medication(new MedicationId('med-1'), new ProfileId('prof-1'), 'Name', 'pill', 'instr', null, new \DateTimeImmutable(), new \DateTimeImmutable());
+        $this->medicationRepo->method('findById')->willReturn($medication);
+
+        $this->scheduleRepo->expects(self::once())->method('save')->with(self::callback(
+            static function (Schedule $schedule): bool {
+                self::assertNull($schedule->timezone());
+                self::assertTrue($schedule->followsProfileTimezone());
+                self::assertSame(
+                    'America/El_Salvador',
+                    $schedule->zone(new \DateTimeZone('America/El_Salvador'))->getName()
+                );
+                self::assertSame('2026-10-06 00:00:00', $schedule->startDate()->format('Y-m-d H:i:s'));
+
+                return true;
+            }
+        ));
+
+        $result = ($this->handler)(new CreateScheduleCommand(
+            'prof-1',
+            'acc-1',
+            'med-1',
+            'daily',
+            new \DateTimeImmutable('2026-10-06'),
+            '500',
+            'mg',
+            timesOfDay: [['hour' => 8, 'minute' => 0]]
+        ));
+
+        self::assertTrue($result->isSuccess());
+        /** @var array<string, mixed> $schedData */
+        $schedData = $result->getValue();
+        self::assertNull($schedData['timezone']);
     }
 }

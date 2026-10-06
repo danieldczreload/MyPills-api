@@ -134,7 +134,8 @@ Los campos varían según `type`:
   "endDate": "2025-12-31",
   "doseAmount": 500,
   "doseUnit": "mg",
-  "clientId": "uuid"
+  "clientId": "uuid",
+  "timezone": "America/El_Salvador"
 }
 ```
 
@@ -171,7 +172,9 @@ La respuesta incluye `dose` (`{ amount, unit, display }`, p.ej. `{ "amount": 500
 }
 ```
 
-> `endDate` y `clientId` son opcionales.
+> `endDate`, `clientId` y `timezone` son opcionales.
+> `timezone` es un id IANA (`America/El_Salvador`, `Etc/GMT+6`). `hour` y `minute` son hora de pared en esa zona: las 08:00 de `America/El_Salvador` son las 14:00Z. Si no viene, la expansión usa la zona del perfil. Un id inválido (`CST`, `US/Central`) responde 422 con `error.type` `VALIDATION`. La respuesta devuelve `timezone` o `null` cuando el horario hereda la del perfil.
+> `startDate` y `endDate` se guardan y se devuelven como esa fecha de calendario a las 00:00:00Z. El offset no es la zona del horario.
 > `daysOfWeek`: `1` = Lunes … `7` = Domingo (ISO-8601, convención; el dominio valida rango 1-7).
 
 ---

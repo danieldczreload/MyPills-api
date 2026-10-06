@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace App\Tests\Profile\Domain;
+namespace App\Tests\Shared\Domain;
 
 use PHPUnit\Framework\TestCase;
-use Profile\Domain\ValueObject\Timezone;
+use Shared\Domain\ValueObject\Timezone;
 
 final class TimezoneTest extends TestCase
 {
@@ -38,17 +38,13 @@ final class TimezoneTest extends TestCase
         self::assertSame('America/El_Salvador', Timezone::dateTimeZoneOrUtc('America/El_Salvador')->getName());
     }
 
-    public function testAnchorsCalendarDateToLocalMidnightAndEndOfDay(): void
+    public function testAcceptsPosixGmtOffsetAndRejectsLegacyAliases(): void
     {
-        $timezone = new Timezone('America/El_Salvador');
-        $date = new \DateTimeImmutable('2026-08-30');
+        $timezone = new Timezone('Etc/GMT+6');
 
-        $start = $timezone->startOfDay($date);
-        $end = $timezone->endOfDay($date);
-
-        self::assertSame('America/El_Salvador', $start->getTimezone()->getName());
-        self::assertSame('2026-08-30 00:00:00', $start->format('Y-m-d H:i:s'));
-        self::assertSame('2026-08-30 23:59:59', $end->format('Y-m-d H:i:s'));
-        self::assertSame('06:00:00', $start->setTimezone(new \DateTimeZone('UTC'))->format('H:i:s'));
+        self::assertSame('Etc/GMT+6', $timezone->value());
+        self::assertSame(-21600, $timezone->toDateTimeZone()->getOffset(new \DateTimeImmutable('2026-10-06')));
+        self::assertNull(Timezone::tryParse('US/Central'));
+        self::assertNull(Timezone::tryParse('Etc/GMT+99'));
     }
 }

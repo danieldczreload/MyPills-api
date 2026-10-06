@@ -6,11 +6,11 @@ namespace Profile\Application\Command;
 
 use Profile\Domain\ProfileRepository;
 use Profile\Domain\ProfileTimezoneChangedEvent;
-use Profile\Domain\ValueObject\Timezone;
 use Shared\Application\Bus\EventBus;
 use Shared\Domain\Failure;
 use Shared\Domain\Result;
 use Shared\Domain\ValueObject\ProfileId;
+use Shared\Domain\ValueObject\Timezone;
 use Symfony\Component\Messenger\Attribute\AsMessageHandler;
 
 #[AsMessageHandler]

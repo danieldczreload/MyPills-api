@@ -49,6 +49,9 @@ abstract class ScheduleDoctrineEntity
     #[ORM\Column(type: 'datetime_immutable', nullable: true)]
     protected ?\DateTimeImmutable $cancelledAt = null;
 
+    #[ORM\Column(type: 'string', length: 100, nullable: true)]
+    protected ?string $timezone = null;
+
     public function __construct(
         string $id,
         string $medicationId,
@@ -139,5 +142,15 @@ abstract class ScheduleDoctrineEntity
     public function setCancelledAt(?\DateTimeImmutable $cancelledAt): void
     {
         $this->cancelledAt = $cancelledAt;
+    }
+
+    public function getTimezone(): ?string
+    {
+        return $this->timezone;
+    }
+
+    public function setTimezone(?string $timezone): void
+    {
+        $this->timezone = $timezone;
     }
 }

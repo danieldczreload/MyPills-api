@@ -24,9 +24,10 @@ final class DailySchedule extends Schedule
         \DateTimeImmutable $createdAt,
         \DateTimeImmutable $updatedAt,
         ?Dose $dose = null,
-        ?\DateTimeImmutable $cancelledAt = null
+        ?\DateTimeImmutable $cancelledAt = null,
+        ?string $timezone = null
     ) {
-        parent::__construct($id, $medicationId, $startDate, $endDate, $clientId, $createdAt, $updatedAt, $dose, $cancelledAt);
+        parent::__construct($id, $medicationId, $startDate, $endDate, $clientId, $createdAt, $updatedAt, $dose, $cancelledAt, $timezone);
     }
 
     /**

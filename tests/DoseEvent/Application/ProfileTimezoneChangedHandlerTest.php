@@ -104,4 +104,44 @@ final class ProfileTimezoneChangedHandlerTest extends TestCase
         );
         $handler(new ProfileTimezoneChangedEvent('prof-1', 'UTC', 'America/El_Salvador'));
     }
+
+    public function testDoesNotRebuildSchedulesThatStoreTheirOwnTimezone(): void
+    {
+        $profileId = new ProfileId('prof-1');
+        $medicationId = new MedicationId('med-1');
+        $schedule = new DailySchedule(
+            new ScheduleId('sch-1'),
+            $medicationId,
+            [new TimeOfDay(8, 0)],
+            new \DateTimeImmutable('2026-10-06'),
+            null,
+            null,
+            new \DateTimeImmutable(),
+            new \DateTimeImmutable(),
+            null,
+            null,
+            'America/El_Salvador'
+        );
+
+        $medicationRepo = $this->createMock(MedicationRepository::class);
+        $medicationRepo->method('findByProfileId')->willReturn([
+            Medication::create($medicationId, $profileId, 'Aspirin'),
+        ]);
+        $scheduleRepo = $this->createMock(ScheduleRepository::class);
+        $scheduleRepo->method('findByMedicationIds')->willReturn([$schedule]);
+        $doseRepo = $this->createMock(DoseEventRepository::class);
+        $doseRepo->expects(self::never())->method('deletePendingByScheduleIds');
+        $doseRepo->expects(self::never())->method('save');
+        $eventBus = $this->createMock(EventBus::class);
+        $eventBus->expects(self::never())->method('publish');
+
+        $handler = new ProfileTimezoneChangedHandler(
+            $medicationRepo,
+            $scheduleRepo,
+            $doseRepo,
+            new MaterializeUpcomingOccurrences($doseRepo, new DoseEventExpander()),
+            $eventBus
+        );
+        $handler(new ProfileTimezoneChangedEvent('prof-1', 'UTC', 'America/Chicago'));
+    }
 }

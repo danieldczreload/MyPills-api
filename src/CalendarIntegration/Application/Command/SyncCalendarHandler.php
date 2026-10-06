@@ -14,12 +14,12 @@ use CalendarIntegration\Domain\CalendarLinkStatus;
 use DoseEvent\Domain\DoseEventRepository;
 use Medication\Domain\MedicationRepository;
 use Profile\Domain\ProfileRepository;
-use Profile\Domain\ValueObject\Timezone;
 use Schedule\Domain\ScheduleRepository;
 use Shared\Domain\Result;
 use Shared\Domain\Failure;
 use Shared\Domain\TokenVault;
 use Shared\Domain\ValueObject\ProfileId;
+use Shared\Domain\ValueObject\Timezone;
 use Shared\Domain\ValueObject\UserId;
 use Symfony\Component\Messenger\Attribute\AsMessageHandler;
 
@@ -222,7 +222,8 @@ final class SyncCalendarHandler
             }
 
             try {
-                $zone = Timezone::dateTimeZoneOrUtc($timeZone);
+                $profileZone = Timezone::dateTimeZoneOrUtc($timeZone);
+                $zone = $schedule?->zone($profileZone) ?? $profileZone;
                 $scheduledAt = $event->scheduledAt()->setTimezone($zone);
                 $description = sprintf(
                     "Instructions: %s\nStatus: %s\nScheduled At: %s",
