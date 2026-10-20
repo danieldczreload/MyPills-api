@@ -1,7 +1,10 @@
 #syntax=docker/dockerfile:1
 
 # Versions
-FROM docker.io/dunglas/frankenphp:1-php8.5 AS frankenphp_upstream
+# Pin the patch tag and digest. Floating 1-php8.5 moved to FrankenPHP 1.13 and
+# broke the legacy Mercure Caddyfile on the VPS with no git change.
+# Dependabot (docker, weekly) bumps this in a PR; CI pull:true is the gate.
+FROM docker.io/dunglas/frankenphp:1.13.0-php8.5@sha256:2a9c6663f73ad1e401909634206bd25e13bed5b94d86eefa3b5ec64c985b4595 AS frankenphp_upstream
 
 # The different stages of this Dockerfile are meant to be built into separate images
 # https://docs.docker.com/build/building/multi-stage/#stop-at-a-specific-build-stage

@@ -22,18 +22,27 @@
 	}
 
 	root /app/public
-	encode zstd br gzip
+	# Compressed SSE streams cost memory per subscriber and enable BREACH-style attacks.
+	@compressible not path /.well-known/mercure*
+	encode @compressible zstd br gzip
 
 	mercure {
-		# Publisher JWT key
-		publisher_jwt {env.MERCURE_PUBLISHER_JWT_KEY} {env.MERCURE_PUBLISHER_JWT_ALG}
-		# Subscriber JWT key
-		subscriber_jwt {env.MERCURE_SUBSCRIBER_JWT_KEY} {env.MERCURE_SUBSCRIBER_JWT_ALG}
-		# Allow anonymous subscribers (double-check that it's what you want)
+		# SERVER_NAME expands to two sites (localhost and php:80). Mercure 1.0
+		# allows only one unnamed hub; the same name shares one transport.
+		name default
+		# Binds the token iss claim to these keys. Nothing in this app mints
+		# Mercure tokens. Default is only for local/CI. Set MERCURE_TRUSTED_ISSUERS
+		# to the issuer URL if a publisher is added later.
+		issuer {$MERCURE_TRUSTED_ISSUERS:https://localhost} {
+			publisher {
+				jwt {env.MERCURE_PUBLISHER_JWT_KEY} {env.MERCURE_PUBLISHER_JWT_ALG}
+			}
+			subscriber {
+				jwt {env.MERCURE_SUBSCRIBER_JWT_KEY} {env.MERCURE_SUBSCRIBER_JWT_ALG}
+			}
+		}
 		anonymous
-		# Enable the subscription API (double-check that it's what you want)
 		subscriptions
-		# Extra directives
 		{$MERCURE_EXTRA_DIRECTIVES}
 	}
 

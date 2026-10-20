@@ -42,7 +42,7 @@ jobs:
       - name: Start services
         run: docker compose up -d --wait --no-build
       - name: Check Mercure reachability
-        run: curl -vI --insecure --fail-with-body https://localhost/.well-known/mercure?topic=test
+        run: curl -vI --insecure --fail-with-body "https://localhost/.well-known/mercure?match=test"
       - name: Create test database & run migrations
         run: |
           docker compose exec -T php bin/console -e test doctrine:database:create --if-not-exists
