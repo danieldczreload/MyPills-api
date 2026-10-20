@@ -40,7 +40,13 @@ jobs:
             *.cache-from=type=gha,scope=refs/heads/main
             *.cache-to=type=gha,scope=${{github.ref}},mode=max
       - name: Start services
-        run: docker compose up -d --wait --no-build
+        run: |
+          set -euo pipefail
+          if ! docker compose up -d --wait --no-build; then
+            docker compose ps -a || true
+            docker compose logs --no-color --tail 200 php worker || true
+            exit 1
+          fi
       - name: Check Mercure reachability
         run: curl -vI --insecure --fail-with-body "https://localhost/.well-known/mercure?match=test"
       - name: Create test database & run migrations
@@ -79,6 +85,8 @@ jobs:
           GITHUB_ACTIONS_CONFIG_FILE: actionlint.yaml
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VALIDATE_ALL_CODEBASE: false
+          # Hadolint 2.12 cannot parse BuildKit COPY --exclude (fixed in 2.13.1).
+          VALIDATE_DOCKERFILE_HADOLINT: false
           VALIDATE_PHP: false
           VALIDATE_PHP_BUILTIN: false
           VALIDATE_PHP_PHPCS: false

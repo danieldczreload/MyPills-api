@@ -38,7 +38,9 @@ services:
       test: ["CMD", "php", "-r", "exit(false === @file_get_contents('http://localhost:2019/metrics', context: stream_context_create(['http' => ['timeout' => 5]])) ? 1 : 0);"]
       timeout: 10s
       retries: 5
-      start_period: 60s
+      # CI bind-mounts the repo without vendor/, so the entrypoint runs
+      # composer install before FrankenPHP listens on :2019.
+      start_period: 180s
     ports:
       - name: http
         target: 80
@@ -59,6 +61,10 @@ services:
       context: .
       target: frankenphp_dev
     restart: unless-stopped
+    # The image healthcheck probes the Caddy admin port. This process never
+    # starts FrankenPHP, so --wait would always mark it unhealthy.
+    healthcheck:
+      disable: true
     command: ["bin/console", "messenger:consume", "event.async", "scheduler_reminders", "--time-limit=3600", "--sleep=1"]
     environment:
       APP_ENV: "${APP_ENV:-dev}"
