@@ -1,10 +1,8 @@
 ---
 name: Deploy Production
 
+# Manual redeploy only. ci.yaml owns automatic production deploys after tests and lint.
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
 
 concurrency:
