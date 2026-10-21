@@ -33,7 +33,7 @@ jobs:
       - name: Build patched FrankenPHP base
         run: ./bin/build-frankenphp-base
       - name: Build Docker images
-        uses: docker/bake-action@a66e1c87e2eca0503c343edf1d208c716d54b8a8 # v7.1.0
+        uses: docker/bake-action@59cb1203cd42bcefd40a1b6d73b589e48c86040e # v7.5.0
         with:
           pull: true
           load: true
