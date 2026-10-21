@@ -1,10 +1,11 @@
 #syntax=docker/dockerfile:1
 
 # Versions
-# Pin the patch tag and digest. Floating 1-php8.5 moved to FrankenPHP 1.13 and
-# broke the legacy Mercure Caddyfile on the VPS with no git change.
-# Dependabot (docker, weekly) bumps this in a PR; CI pull:true is the gate.
-FROM docker.io/dunglas/frankenphp:1.13.0-php8.5@sha256:2a9c6663f73ad1e401909634206bd25e13bed5b94d86eefa3b5ec64c985b4595 AS frankenphp_upstream
+# CVE-2026-109618 and CVE-2026-109619 require PHP 8.5.12. Official
+# dunglas/frankenphp tags were still 8.5.11, and library/php:8.5.12 was an
+# empty manifest, so bin/build-frankenphp-base builds this tag first.
+# FrankenPHP 1.13.1 keeps the Mercure Caddyfile fix from 1.13.0.
+FROM frankenphp-php8.5.12:1.13.1 AS frankenphp_upstream
 
 # The different stages of this Dockerfile are meant to be built into separate images
 # https://docs.docker.com/build/building/multi-stage/#stop-at-a-specific-build-stage
@@ -17,6 +18,8 @@ FROM frankenphp_upstream AS frankenphp_base
 SHELL ["/bin/bash", "-euxo", "pipefail", "-c"]
 
 WORKDIR /app
+
+RUN php -r 'if (PHP_VERSION_ID < 80512) { fwrite(STDERR, "PHP ".PHP_VERSION." is missing the 8.5.12 security patch\n"); exit(1); }'
 
 # persistent deps
 # hadolint ignore=DL3008

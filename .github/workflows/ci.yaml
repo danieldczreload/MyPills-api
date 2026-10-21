@@ -26,6 +26,12 @@ jobs:
           persist-credentials: false
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+        with:
+          # The patched FrankenPHP base is a local tag. The container driver
+          # cannot see images in the daemon.
+          driver: docker
+      - name: Build patched FrankenPHP base
+        run: ./bin/build-frankenphp-base
       - name: Build Docker images
         uses: docker/bake-action@a66e1c87e2eca0503c343edf1d208c716d54b8a8 # v7.1.0
         with:

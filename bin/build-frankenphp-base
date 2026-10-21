@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Build FrankenPHP 1.13.1 against PHP 8.5.12.
+#
+# CVE-2026-109618 and CVE-2026-109619 are patched only in PHP 8.5.12.
+# dunglas/frankenphp:1.13.1-php8.5 was built before that release, and
+# library/php:8.5.12 was published as an empty manifest index, so this
+# compiles the official docker-library PHP image when the registry tag
+# is not actually pullable.
+
+TAG="${FRANKENPHP_BASE_TAG:-frankenphp-php8.5.12:1.13.1}"
+PHP_TAG="${PHP_BASE_TAG:-php:8.5.12-zts-trixie}"
+PHP_COMMIT="${PHP_DOCKER_COMMIT:-f6048b5f6e3c2202ee082665a4ccc0d90de291a3}"
+FRANKENPHP_COMMIT="${FRANKENPHP_COMMIT:-99d4e119ca2e5a90a69d8dbee5d5c9a8016416c5}"
+GO_IMAGE="${GO_IMAGE:-docker.io/library/golang:1.27-trixie}"
+
+if docker image inspect "$TAG" >/dev/null 2>&1; then
+	ver="$(docker run --rm "$TAG" php -r 'echo PHP_VERSION;')"
+	if [[ "$ver" == "8.5.12" ]]; then
+		echo "patched FrankenPHP base already present ($TAG, PHP $ver)"
+		exit 0
+	fi
+	echo "replacing $TAG (PHP $ver) — need 8.5.12"
+fi
+
+php_ready=0
+if docker pull "$PHP_TAG"; then
+	if docker run --rm "$PHP_TAG" php -r 'exit(PHP_VERSION_ID === 80512 ? 0 : 1)'; then
+		php_ready=1
+		echo "using registry image $PHP_TAG"
+	else
+		echo "$PHP_TAG pulled but is not PHP 8.5.12; building from source"
+	fi
+else
+	echo "$PHP_TAG is not pullable; building from the official PHP Dockerfile"
+fi
+
+workdir="$(mktemp -d)"
+trap 'rm -rf "$workdir"' EXIT
+
+if [[ "$php_ready" -ne 1 ]]; then
+	git -C "$workdir" clone --depth 1 https://github.com/docker-library/php.git php-docker
+	git -C "$workdir/php-docker" fetch --depth 1 origin "$PHP_COMMIT"
+	git -C "$workdir/php-docker" checkout --detach "$PHP_COMMIT"
+	docker build -t "$PHP_TAG" "$workdir/php-docker/8.5/trixie/zts"
+	docker run --rm "$PHP_TAG" php -r 'exit(PHP_VERSION_ID === 80512 ? 0 : 1);'
+fi
+
+git -C "$workdir" clone --depth 1 https://github.com/php/frankenphp.git frankenphp
+git -C "$workdir/frankenphp" fetch --depth 1 origin "$FRANKENPHP_COMMIT"
+git -C "$workdir/frankenphp" checkout --detach "$FRANKENPHP_COMMIT"
+DOCKER_BUILDKIT=1 docker build \
+	--build-arg FRANKENPHP_VERSION=v1.13.1 \
+	--build-context "php-base=docker-image://${PHP_TAG}" \
+	--build-context "golang-base=docker-image://${GO_IMAGE}" \
+	--target runner \
+	-t "$TAG" \
+	"$workdir/frankenphp"
+docker run --rm "$TAG" php -r 'exit(PHP_VERSION_ID === 80512 ? 0 : 1);'
+echo "built $TAG"
