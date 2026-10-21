@@ -29,16 +29,18 @@ RUN <<-EOF
 		file \
 		git
 	# pecl.php.net was returning HTTP 500 for tarball downloads.
-	# owner/repo@ref is fetched from GitHub by install-php-extensions.
+	# The GitHub archive omits the liblzf submodule, so clone it.
+	git clone --depth 1 --branch 6.3.0 --recurse-submodules https://github.com/phpredis/phpredis.git /tmp/phpredis
 	install-php-extensions \
 		@composer \
 		krakjoe/apcu@v5.1.28 \
 		intl \
 		opcache \
 		pdo_pgsql \
-		phpredis/phpredis@6.3.0 \
+		/tmp/phpredis \
 		sodium \
 		zip
+	rm -rf /tmp/phpredis
 	rm -rf /var/lib/apt/lists/*
 EOF
 
