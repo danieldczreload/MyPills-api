@@ -28,13 +28,15 @@ RUN <<-EOF
 	apt-get install -y --no-install-recommends \
 		file \
 		git
+	# pecl.php.net was returning HTTP 500 for tarball downloads.
+	# owner/repo@ref is fetched from GitHub by install-php-extensions.
 	install-php-extensions \
 		@composer \
-		apcu \
+		krakjoe/apcu@v5.1.28 \
 		intl \
 		opcache \
 		pdo_pgsql \
-		redis \
+		phpredis/phpredis@6.3.0 \
 		sodium \
 		zip
 	rm -rf /var/lib/apt/lists/*
@@ -77,7 +79,7 @@ RUN <<-EOF
 		iptables \
 		jq \
 		sudo
-	install-php-extensions xdebug
+	install-php-extensions xdebug/xdebug@3.5.3
 	rm -rf /var/lib/apt/lists/*
 	useradd -m -s /bin/bash nonroot
 	echo "nonroot ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/nonroot
