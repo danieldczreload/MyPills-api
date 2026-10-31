@@ -18,17 +18,17 @@ build_info="$(docker run --rm --entrypoint frankenphp "$IMG" build-info)"
 go_line="$(printf '%s\n' "$build_info" | awk '$1 == "go" { print $2; exit }')"
 
 if [[ ! "$go_line" =~ ^go([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
-	printf 'Go version missing or unparseable in frankenphp build-info (got %q)\n' "$go_line" >&2
-	exit 1
+    printf 'Go version missing or unparseable in frankenphp build-info (got %q)\n' "$go_line" >&2
+    exit 1
 fi
 
 major="${BASH_REMATCH[1]}"
 minor="${BASH_REMATCH[2]}"
 patch="${BASH_REMATCH[3]}"
 
-if (( major < 1 || (major == 1 && minor < 27) || (major == 1 && minor == 27 && patch < 3) )); then
-	printf 'Go %s is older than 1.27.3\n' "$go_line" >&2
-	exit 1
+if ((major < 1 || (major == 1 && minor < 27) || (major == 1 && minor == 27 && patch < 3))); then
+    printf 'Go %s is older than 1.27.3\n' "$go_line" >&2
+    exit 1
 fi
 
 printf 'verified %s (PHP 8.5.12, FrankenPHP v1.13.4, %s)\n' "$IMG" "$go_line"

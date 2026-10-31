@@ -4,7 +4,7 @@ Symfony 8.1 backend (PHP 8.5+, PostgreSQL 16, Doctrine ORM 3) for a Flutter medi
 
 ## Architecture — Strict Rules
 
-```
+```text
 UI → Application → Domain
 Infrastructure → Domain (implements interfaces)
 ```
@@ -17,15 +17,15 @@ Infrastructure → Domain (implements interfaces)
 
 ## Bus Routing
 
-| Bus           | Transport    | Notes                                        |
-|---------------|--------------|----------------------------------------------|
-| `command.bus` | `sync://`    | Synchronous                                  |
-| `query.bus`   | `sync://`    | Synchronous                                  |
-| `event.bus`   | `event.async`| Doctrine transport. All `Shared\Domain\DomainEvent` subclasses route here automatically |
+| Bus           | Transport     | Notes                                                                                   |
+| ------------- | ------------- | --------------------------------------------------------------------------------------- |
+| `command.bus` | `sync://`     | Synchronous                                                                             |
+| `query.bus`   | `sync://`     | Synchronous                                                                             |
+| `event.bus`   | `event.async` | Doctrine transport. All `Shared\Domain\DomainEvent` subclasses route here automatically |
 
 ## Bounded Contexts
 
-```
+```text
 src/
   Shared/              UserId, ProfileId, Email, Result<T>, Failure, bus interfaces
   Identity/            Account + OAuth links
@@ -39,7 +39,7 @@ src/
 
 ### Folder Shape (every context)
 
-```
+```text
 <Context>/
   Domain/           Entities, value objects, repo interfaces, domain events
   Application/
@@ -90,11 +90,11 @@ Each context is autowired in `config/services.yaml`. Domain directories are excl
 
 ## Quality Gates
 
-| Command        | Tool                          |
-|----------------|-------------------------------|
-| `make stan`    | PHPStan level 9               |
-| `make cs`      | php-cs-fixer (@PSR12 + short_array_syntax + no_unused_imports) |
-| `make test`    | PHPUnit (unit + WebTestCase with real Postgres) |
+| Command     | Tool                                                           |
+| ----------- | -------------------------------------------------------------- |
+| `make stan` | PHPStan level 9                                                |
+| `make cs`   | php-cs-fixer (@PSR12 + short_array_syntax + no_unused_imports) |
+| `make test` | PHPUnit (unit + WebTestCase with real Postgres)                |
 
 All three must pass before any PR.
 
