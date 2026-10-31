@@ -1,6 +1,6 @@
 # MyPills API — Agent Instructions
 
-Symfony 8.0 backend (PHP 8.5+, PostgreSQL 16, Doctrine ORM 3) for a Flutter medication-management app. Architecture: DDD + CQRS + Vertical Slices.
+Symfony 8.1 backend (PHP 8.5+, PostgreSQL 16, Doctrine ORM 3) for a Flutter medication-management app. Architecture: DDD + CQRS + Vertical Slices.
 
 ## Architecture — Strict Rules
 

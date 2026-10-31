@@ -1,11 +1,11 @@
 #syntax=docker/dockerfile:1
 
-# Versions
-# CVE-2026-109618 and CVE-2026-109619 require PHP 8.5.12. Official
-# dunglas/frankenphp tags were still 8.5.11, and library/php:8.5.12 was an
-# empty manifest, so bin/build-frankenphp-base builds this tag first.
-# FrankenPHP 1.13.1 keeps the Mercure Caddyfile fix from 1.13.0.
-FROM frankenphp-php8.5.12:1.13.1 AS frankenphp_upstream
+# Official FrankenPHP 1.13.4 already ships PHP 8.5.12 (CVE-2026-109618,
+# CVE-2026-109619). Digest pin. Do not float 1.13.4-php8.5.
+# Includes worker fixes (GHSA-fq24-r53r-xcx3; not 1.13.2/1.13.3, which have
+# GHSA-5f4m-ff4w-g458), libbrotli1 upgrade for CVE-2026-111497, and must be
+# built with Go >= 1.27.3 (GO-2026-6617).
+FROM dunglas/frankenphp:1.13.4-php8.5.12@sha256:c8abcc7925f16b1431f139d0410abe8f48db3fd862bacb646b05a4413337106a AS frankenphp_upstream
 
 # The different stages of this Dockerfile are meant to be built into separate images
 # https://docs.docker.com/build/building/multi-stage/#stop-at-a-specific-build-stage
@@ -19,7 +19,8 @@ SHELL ["/bin/bash", "-euxo", "pipefail", "-c"]
 
 WORKDIR /app
 
-RUN php -r 'if (PHP_VERSION_ID < 80512) { fwrite(STDERR, "PHP ".PHP_VERSION." is missing the 8.5.12 security patch\n"); exit(1); }'
+RUN php -r 'if (PHP_VERSION_ID !== 80512) { fwrite(STDERR, "PHP ".PHP_VERSION." is not 8.5.12\n"); exit(1); }'
+RUN frankenphp version | grep -F 'v1.13.4'
 
 # persistent deps
 # hadolint ignore=DL3008
