@@ -5,6 +5,8 @@ name: Deploy Production
 on:
   workflow_dispatch:
 
+permissions: {}
+
 concurrency:
   group: deploy-production
   cancel-in-progress: false
