@@ -45,7 +45,19 @@ jobs:
             cd /opt/projects/mypills-api
             git fetch origin main
             git reset --hard origin/main
-            sudo systemctl reload-or-restart mypills
+            if ! sudo systemctl reload-or-restart mypills; then
+              echo "=== systemctl status ==="
+              sudo systemctl status mypills --no-pager || true
+              echo "=== journalctl ==="
+              sudo journalctl -u mypills --no-pager -n 100 || true
+              echo "=== docker ps ==="
+              docker ps -a --filter "name=mypills" || true
+              echo "=== php logs ==="
+              docker logs --tail 80 mypills-api-php-1 || true
+              echo "=== worker logs ==="
+              docker logs --tail 80 mypills-api-worker-1 || true
+              exit 1
+            fi
             chmod 600 .env 2>/dev/null || true
             echo "MyPills service successfully reloaded/restarted!"
             sudo systemctl status mypills --no-pager
