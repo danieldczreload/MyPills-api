@@ -11,7 +11,13 @@ final readonly class CancelNotificationCommand
         public string $accountId,
         public string $doseEventId,
         public bool $cancelPush = true,
-        public bool $cancelCalendar = true
+        public bool $cancelCalendar = true,
+        public ?bool $cancelAlarm = null
     ) {
+    }
+
+    public function shouldCancelAlarm(): bool
+    {
+        return $this->cancelAlarm ?? $this->cancelPush;
     }
 }

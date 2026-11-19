@@ -13,7 +13,13 @@ final readonly class CancelRecurringNotificationsCommand
         public ?string $medicationId = null,
         public bool $cancelPush = true,
         public bool $cancelCalendar = true,
-        public bool $deleteSchedule = false
+        public bool $deleteSchedule = false,
+        public ?bool $cancelAlarm = null
     ) {
+    }
+
+    public function shouldCancelAlarm(): bool
+    {
+        return $this->cancelAlarm ?? $this->cancelPush;
     }
 }

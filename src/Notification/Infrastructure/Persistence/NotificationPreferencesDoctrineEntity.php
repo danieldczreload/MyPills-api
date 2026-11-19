@@ -35,6 +35,9 @@ class NotificationPreferencesDoctrineEntity
     #[ORM\Column(type: 'integer')]
     private int $reminderMinutesBefore;
 
+    #[ORM\Column(type: 'boolean', options: ['default' => true])]
+    private bool $alarmRemindersEnabled;
+
     #[ORM\Column(type: 'datetime_immutable')]
     private \DateTimeImmutable $createdAt;
 
@@ -51,7 +54,8 @@ class NotificationPreferencesDoctrineEntity
         \DateTimeImmutable $createdAt,
         \DateTimeImmutable $updatedAt,
         bool $inAppBannersEnabled = true,
-        int $reminderMinutesBefore = 0
+        int $reminderMinutesBefore = 0,
+        bool $alarmRemindersEnabled = true
     ) {
         $this->id = $id;
         $this->accountId = $accountId;
@@ -61,6 +65,7 @@ class NotificationPreferencesDoctrineEntity
         $this->weeklyStreakSummariesEnabled = $weeklyStreakSummariesEnabled;
         $this->inAppBannersEnabled = $inAppBannersEnabled;
         $this->reminderMinutesBefore = $reminderMinutesBefore;
+        $this->alarmRemindersEnabled = $alarmRemindersEnabled;
         $this->createdAt = $createdAt;
         $this->updatedAt = $updatedAt;
     }
@@ -133,6 +138,16 @@ class NotificationPreferencesDoctrineEntity
     public function setReminderMinutesBefore(int $reminderMinutesBefore): void
     {
         $this->reminderMinutesBefore = $reminderMinutesBefore;
+    }
+
+    public function isAlarmRemindersEnabled(): bool
+    {
+        return $this->alarmRemindersEnabled;
+    }
+
+    public function setAlarmRemindersEnabled(bool $alarmRemindersEnabled): void
+    {
+        $this->alarmRemindersEnabled = $alarmRemindersEnabled;
     }
 
     public function getCreatedAt(): \DateTimeImmutable

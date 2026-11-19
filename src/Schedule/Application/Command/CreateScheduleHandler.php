@@ -113,7 +113,10 @@ final class CreateScheduleHandler
                 $now,
                 $now,
                 $dose,
-                timezone: $scheduleTimezone
+                timezone: $scheduleTimezone,
+                notifyAlarm: $command->notifyAlarm,
+                notifyPush: $command->notifyPush,
+                notifyCalendar: $command->notifyCalendar
             );
         } elseif ($command->type === 'daily_interval') {
             if ($command->everyHours === null || $command->everyHours <= 0) {
@@ -137,7 +140,10 @@ final class CreateScheduleHandler
                 $now,
                 $now,
                 $dose,
-                timezone: $scheduleTimezone
+                timezone: $scheduleTimezone,
+                notifyAlarm: $command->notifyAlarm,
+                notifyPush: $command->notifyPush,
+                notifyCalendar: $command->notifyCalendar
             );
         } elseif ($command->type === 'specific_days') {
             if ($command->daysOfWeek === null || count($command->daysOfWeek) === 0) {
@@ -161,7 +167,10 @@ final class CreateScheduleHandler
                 $now,
                 $now,
                 $dose,
-                timezone: $scheduleTimezone
+                timezone: $scheduleTimezone,
+                notifyAlarm: $command->notifyAlarm,
+                notifyPush: $command->notifyPush,
+                notifyCalendar: $command->notifyCalendar
             );
         } else {
             return Result::failure(Failure::validation('Invalid schedule type.'));

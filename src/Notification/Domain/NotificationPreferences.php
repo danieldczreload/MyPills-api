@@ -18,7 +18,8 @@ final class NotificationPreferences
         private readonly \DateTimeImmutable $createdAt,
         private \DateTimeImmutable $updatedAt,
         private bool $inAppBannersEnabled = true,
-        private int $reminderMinutesBefore = 0
+        private int $reminderMinutesBefore = 0,
+        private bool $alarmRemindersEnabled = true
     ) {
     }
 
@@ -30,7 +31,7 @@ final class NotificationPreferences
         $uuid = vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($data), 4));
 
         $now = new \DateTimeImmutable();
-        return new self($uuid, $accountId, true, true, true, true, $now, $now, true, 0);
+        return new self($uuid, $accountId, true, true, true, true, $now, $now, true, 0, true);
     }
 
     public function id(): string
@@ -73,6 +74,11 @@ final class NotificationPreferences
         return $this->reminderMinutesBefore;
     }
 
+    public function alarmRemindersEnabled(): bool
+    {
+        return $this->alarmRemindersEnabled;
+    }
+
     public function createdAt(): \DateTimeImmutable
     {
         return $this->createdAt;
@@ -89,7 +95,8 @@ final class NotificationPreferences
         ?bool $refillAlertsEnabled = null,
         ?bool $weeklyStreakSummariesEnabled = null,
         ?bool $inAppBannersEnabled = null,
-        ?int $reminderMinutesBefore = null
+        ?int $reminderMinutesBefore = null,
+        ?bool $alarmRemindersEnabled = null
     ): void {
         if ($doseRemindersEnabled !== null) {
             $this->doseRemindersEnabled = $doseRemindersEnabled;
@@ -108,6 +115,9 @@ final class NotificationPreferences
         }
         if ($reminderMinutesBefore !== null) {
             $this->reminderMinutesBefore = $reminderMinutesBefore;
+        }
+        if ($alarmRemindersEnabled !== null) {
+            $this->alarmRemindersEnabled = $alarmRemindersEnabled;
         }
         $this->updatedAt = new \DateTimeImmutable();
     }

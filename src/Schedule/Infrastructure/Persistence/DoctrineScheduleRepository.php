@@ -96,6 +96,9 @@ final class DoctrineScheduleRepository implements ScheduleRepository
 
         $entity->setCancelledAt($schedule->cancelledAt());
         $entity->setTimezone($schedule->timezone());
+        $entity->setNotifyAlarm($schedule->notifyAlarm());
+        $entity->setNotifyPush($schedule->notifyPush());
+        $entity->setNotifyCalendar($schedule->notifyCalendar());
 
         $this->entityManager->flush();
     }
@@ -192,7 +195,10 @@ final class DoctrineScheduleRepository implements ScheduleRepository
                 $entity->getUpdatedAt(),
                 $dose,
                 $entity->getCancelledAt(),
-                $entity->getTimezone()
+                $entity->getTimezone(),
+                $entity->getNotifyAlarm(),
+                $entity->getNotifyPush(),
+                $entity->getNotifyCalendar()
             );
         }
 
@@ -214,7 +220,10 @@ final class DoctrineScheduleRepository implements ScheduleRepository
                 $entity->getUpdatedAt(),
                 $dose,
                 $entity->getCancelledAt(),
-                $entity->getTimezone()
+                $entity->getTimezone(),
+                $entity->getNotifyAlarm(),
+                $entity->getNotifyPush(),
+                $entity->getNotifyCalendar()
             );
         }
 
@@ -236,7 +245,10 @@ final class DoctrineScheduleRepository implements ScheduleRepository
                 $entity->getUpdatedAt(),
                 $dose,
                 $entity->getCancelledAt(),
-                $entity->getTimezone()
+                $entity->getTimezone(),
+                $entity->getNotifyAlarm(),
+                $entity->getNotifyPush(),
+                $entity->getNotifyCalendar()
             );
         }
 

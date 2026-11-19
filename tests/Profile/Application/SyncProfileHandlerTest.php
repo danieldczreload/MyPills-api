@@ -85,7 +85,19 @@ final class SyncProfileHandlerTest extends TestCase
         $medication = new Medication($medId, new ProfileId('prof-1'), 'Aspirin', 'pill', 'take once', null, $since, $since);
         $this->medicationRepo->method('findByProfileId')->willReturn([$medication]);
 
-        $schedule = new DailySchedule(new ScheduleId('sch-1'), $medId, [new TimeOfDay(8, 0)], $since, null, null, $since, $since);
+        $schedule = new DailySchedule(
+            new ScheduleId('sch-1'),
+            $medId,
+            [new TimeOfDay(8, 0)],
+            $since,
+            null,
+            null,
+            $since,
+            $since,
+            notifyAlarm: true,
+            notifyPush: false,
+            notifyCalendar: true
+        );
         $this->scheduleRepo->method('findByMedicationIds')->willReturn([$schedule]);
 
         $doseEvent = DoseEvent::create(new DoseEventId('dose-1'), $medId, new ScheduleId('sch-1'), $since);
@@ -104,6 +116,9 @@ final class SyncProfileHandlerTest extends TestCase
         $data = $result->getValue();
         self::assertCount(1, $data['medications']);
         self::assertCount(1, $data['schedules']);
+        self::assertTrue($data['schedules'][0]['notifyAlarm']);
+        self::assertFalse($data['schedules'][0]['notifyPush']);
+        self::assertTrue($data['schedules'][0]['notifyCalendar']);
         self::assertCount(1, $data['doseEvents']);
         self::assertCount(1, $data['taxonomyGroups']);
         self::assertCount(1, $data['tombstones']);

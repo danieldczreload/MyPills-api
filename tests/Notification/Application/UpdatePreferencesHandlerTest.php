@@ -22,6 +22,7 @@ final class UpdatePreferencesHandlerTest extends TestCase
         $repository->method('findByAccountId')->with($userId)->willReturn($prefs);
         $repository->expects(self::once())->method('save')->with(self::callback(function (NotificationPreferences $p) {
             return $p->doseRemindersEnabled() === false
+                && $p->alarmRemindersEnabled() === false
                 && $p->inAppBannersEnabled() === true
                 && $p->reminderMinutesBefore() === 15;
         }));
@@ -31,13 +32,15 @@ final class UpdatePreferencesHandlerTest extends TestCase
             $userId->value(),
             doseRemindersEnabled: false,
             inAppBannersEnabled: true,
-            reminderMinutesBefore: 15
+            reminderMinutesBefore: 15,
+            alarmRemindersEnabled: false
         ));
 
         self::assertTrue($result->isSuccess());
         /** @var array<string, mixed> $data */
         $data = $result->getValue();
         self::assertFalse($data['doseRemindersEnabled']);
+        self::assertFalse($data['alarmRemindersEnabled']);
         self::assertTrue($data['inAppBannersEnabled']);
         self::assertSame(15, $data['reminderMinutesBefore']);
     }

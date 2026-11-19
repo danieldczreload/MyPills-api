@@ -96,7 +96,17 @@ final class CalendarHandlersExtraTest extends TestCase
         $med = new Medication($medId, new ProfileId('prof-1'), 'Aspirin', 'pill', 'instructions', null, new \DateTimeImmutable(), new \DateTimeImmutable());
         $medRepo->method('findByProfileId')->willReturn([$med]);
 
-        $sched = new DailySchedule(new ScheduleId('sch-1'), $medId, [new TimeOfDay(8, 0)], new \DateTimeImmutable(), null, null, new \DateTimeImmutable(), new \DateTimeImmutable());
+        $sched = new DailySchedule(
+            new ScheduleId('sch-1'),
+            $medId,
+            [new TimeOfDay(8, 0)],
+            new \DateTimeImmutable(),
+            null,
+            null,
+            new \DateTimeImmutable(),
+            new \DateTimeImmutable(),
+            notifyCalendar: true
+        );
         $schedRepo->method('findByMedicationIds')->willReturn([$sched]);
 
         $dose = DoseEvent::create(new DoseEventId('dose-1'), $medId, new ScheduleId('sch-1'), new \DateTimeImmutable('+1 day'));
@@ -187,8 +197,27 @@ final class CalendarHandlersExtraTest extends TestCase
         self::assertTrue($res->isSuccess());
         self::assertSame('NO_SCHEDULES', $res->getValue()['skipped'][0]['reason']);
 
-        // 3. No dose events
-        $sched = new DailySchedule(new ScheduleId('sch-1'), $medId, [new TimeOfDay(8, 0)], new \DateTimeImmutable(), null, null, new \DateTimeImmutable(), new \DateTimeImmutable());
+        // 3. No calendar-enabled schedules
+        $alarmOnlySched = new DailySchedule(new ScheduleId('sch-alarm'), $medId, [new TimeOfDay(8, 0)], new \DateTimeImmutable(), null, null, new \DateTimeImmutable(), new \DateTimeImmutable());
+        $schedRepo = $this->createMock(ScheduleRepository::class);
+        $schedRepo->method('findByMedicationIds')->willReturn([$alarmOnlySched]);
+        $handler = new SyncCalendarHandler($linkRepo, $mapRepo, $profileRepo, $medRepo, $schedRepo, $doseRepo, $resolver, $vault);
+        $res = $handler(new SyncCalendarCommand('acc-1', null));
+        self::assertTrue($res->isSuccess());
+        self::assertSame('NO_CALENDAR_SCHEDULES', $res->getValue()['skipped'][0]['reason']);
+
+        // 4. No dose events for calendar-enabled schedule
+        $sched = new DailySchedule(
+            new ScheduleId('sch-1'),
+            $medId,
+            [new TimeOfDay(8, 0)],
+            new \DateTimeImmutable(),
+            null,
+            null,
+            new \DateTimeImmutable(),
+            new \DateTimeImmutable(),
+            notifyCalendar: true
+        );
         $schedRepo = $this->createMock(ScheduleRepository::class);
         $schedRepo->method('findByMedicationIds')->willReturn([$sched]);
         $doseRepo->method('findByScheduleIdsAndRange')->willReturn([]);
@@ -218,7 +247,17 @@ final class CalendarHandlersExtraTest extends TestCase
         $med = new Medication($medId, new ProfileId('prof-1'), 'Aspirin', 'pill', 'instructions', null, new \DateTimeImmutable(), new \DateTimeImmutable());
         $medRepo->method('findByProfileId')->willReturn([$med]);
 
-        $sched = new DailySchedule(new ScheduleId('sch-1'), $medId, [new TimeOfDay(8, 0)], new \DateTimeImmutable(), null, null, new \DateTimeImmutable(), new \DateTimeImmutable());
+        $sched = new DailySchedule(
+            new ScheduleId('sch-1'),
+            $medId,
+            [new TimeOfDay(8, 0)],
+            new \DateTimeImmutable(),
+            null,
+            null,
+            new \DateTimeImmutable(),
+            new \DateTimeImmutable(),
+            notifyCalendar: true
+        );
         $schedRepo->method('findByMedicationIds')->willReturn([$sched]);
 
         $dose = DoseEvent::create(new DoseEventId('dose-1'), $medId, new ScheduleId('sch-1'), new \DateTimeImmutable('+1 day'));
@@ -307,7 +346,17 @@ final class CalendarHandlersExtraTest extends TestCase
         $med = new Medication($medId, new ProfileId('prof-1'), 'Aspirin', 'pill', 'instructions', null, new \DateTimeImmutable(), new \DateTimeImmutable());
         $medRepo->method('findByProfileId')->willReturn([$med]);
 
-        $sched = new DailySchedule(new ScheduleId('sch-1'), $medId, [new TimeOfDay(8, 0)], new \DateTimeImmutable(), null, null, new \DateTimeImmutable(), new \DateTimeImmutable());
+        $sched = new DailySchedule(
+            new ScheduleId('sch-1'),
+            $medId,
+            [new TimeOfDay(8, 0)],
+            new \DateTimeImmutable(),
+            null,
+            null,
+            new \DateTimeImmutable(),
+            new \DateTimeImmutable(),
+            notifyCalendar: true
+        );
         $schedRepo->method('findByMedicationIds')->willReturn([$sched]);
 
         $dose = DoseEvent::create(new DoseEventId('dose-1'), $medId, new ScheduleId('sch-1'), new \DateTimeImmutable('+1 day'));

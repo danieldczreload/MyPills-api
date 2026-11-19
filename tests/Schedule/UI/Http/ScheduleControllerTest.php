@@ -174,6 +174,53 @@ final class ScheduleControllerTest extends WebTestCase
         $schedData = $this->decodeResponse($client->getResponse()->getContent());
         $schedId = $this->stringValue($schedData, 'id');
         self::assertSame(['amount' => 5, 'unit' => 'ml', 'display' => '5 ml'], $schedData['dose']);
+        self::assertTrue($schedData['notifyAlarm']);
+        self::assertFalse($schedData['notifyPush']);
+        self::assertFalse($schedData['notifyCalendar']);
+
+        // 6b. Valid Daily schedule with custom notification switches
+        $client->request(
+            'POST',
+            '/api/v1/profiles/' . $profileId . '/schedules',
+            [],
+            [],
+            $headers,
+            $this->encode([
+                'medicationId' => $medicationId,
+                'type' => 'daily',
+                'startDate' => $now->format(\DateTimeInterface::ATOM),
+                'timesOfDay' => [['hour' => 9, 'minute' => 0]],
+                'doseAmount' => 10,
+                'doseUnit' => 'mg',
+                'notifyAlarm' => false,
+                'notifyPush' => true,
+                'notifyCalendar' => true,
+            ])
+        );
+        self::assertSame(Response::HTTP_CREATED, $client->getResponse()->getStatusCode());
+        $customSchedData = $this->decodeResponse($client->getResponse()->getContent());
+        self::assertFalse($customSchedData['notifyAlarm']);
+        self::assertTrue($customSchedData['notifyPush']);
+        self::assertTrue($customSchedData['notifyCalendar']);
+
+        // 6c. Non-boolean notification switches are rejected with 422
+        $client->request(
+            'POST',
+            '/api/v1/profiles/' . $profileId . '/schedules',
+            [],
+            [],
+            $headers,
+            $this->encode([
+                'medicationId' => $medicationId,
+                'type' => 'daily',
+                'startDate' => $now->format(\DateTimeInterface::ATOM),
+                'timesOfDay' => [['hour' => 9, 'minute' => 0]],
+                'doseAmount' => 10,
+                'doseUnit' => 'mg',
+                'notifyAlarm' => 'false',
+            ])
+        );
+        self::assertSame(Response::HTTP_UNPROCESSABLE_ENTITY, $client->getResponse()->getStatusCode());
 
         $client->request(
             'POST',

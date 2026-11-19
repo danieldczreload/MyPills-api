@@ -70,6 +70,101 @@ final class ScheduleDomainTest extends TestCase
         self::assertCount(1, $schedule->timesOfDay());
         self::assertSame('client-1', $schedule->clientId());
         self::assertSame('500 mg', $schedule->dose()?->display());
+        self::assertTrue($schedule->notifyAlarm());
+        self::assertFalse($schedule->notifyPush());
+        self::assertFalse($schedule->notifyCalendar());
+    }
+
+    public function testNotificationSwitchesDefaultsAndOverrides(): void
+    {
+        $id = ScheduleId::generate();
+        $medId = MedicationId::generate();
+        $start = new \DateTimeImmutable('2026-08-01');
+
+        $defaultSchedule = new DailySchedule(
+            $id,
+            $medId,
+            [new TimeOfDay(8, 0)],
+            $start,
+            null,
+            null,
+            $start,
+            $start
+        );
+        self::assertTrue($defaultSchedule->notifyAlarm());
+        self::assertFalse($defaultSchedule->notifyPush());
+        self::assertFalse($defaultSchedule->notifyCalendar());
+
+        $customDaily = new DailySchedule(
+            $id,
+            $medId,
+            [new TimeOfDay(8, 0)],
+            $start,
+            null,
+            null,
+            $start,
+            $start,
+            notifyAlarm: false,
+            notifyPush: true,
+            notifyCalendar: true
+        );
+        self::assertFalse($customDaily->notifyAlarm());
+        self::assertTrue($customDaily->notifyPush());
+        self::assertTrue($customDaily->notifyCalendar());
+
+        $customInterval = new DailyIntervalSchedule(
+            $id,
+            $medId,
+            6,
+            new TimeOfDay(8, 0),
+            null,
+            $start,
+            null,
+            null,
+            $start,
+            $start,
+            notifyAlarm: false,
+            notifyPush: true,
+            notifyCalendar: true
+        );
+        self::assertFalse($customInterval->notifyAlarm());
+        self::assertTrue($customInterval->notifyPush());
+        self::assertTrue($customInterval->notifyCalendar());
+
+        $customSpecific = new SpecificDaysSchedule(
+            $id,
+            $medId,
+            [1, 2],
+            [new TimeOfDay(8, 0)],
+            $start,
+            null,
+            null,
+            $start,
+            $start,
+            notifyAlarm: false,
+            notifyPush: true,
+            notifyCalendar: true
+        );
+        self::assertFalse($customSpecific->notifyAlarm());
+        self::assertTrue($customSpecific->notifyPush());
+        self::assertTrue($customSpecific->notifyCalendar());
+
+        $updatedAt = $start->modify('+2 hours');
+        $changed = $customDaily->disableNotificationChannels(false, true, false, $updatedAt);
+        self::assertTrue($changed);
+        self::assertFalse($customDaily->notifyAlarm());
+        self::assertFalse($customDaily->notifyPush());
+        self::assertTrue($customDaily->notifyCalendar());
+        self::assertSame($updatedAt, $customDaily->updatedAt());
+
+        $noOpAt = $start->modify('+3 hours');
+        self::assertFalse($customDaily->disableNotificationChannels(true, true, false, $noOpAt));
+        self::assertSame($updatedAt, $customDaily->updatedAt());
+
+        $cancelledAt = $start->modify('+4 hours');
+        $customDaily->markCancelled($cancelledAt);
+        self::assertTrue($customDaily->isCancelled());
+        self::assertSame($cancelledAt, $customDaily->updatedAt());
     }
 
     public function testDailyIntervalScheduleProperties(): void

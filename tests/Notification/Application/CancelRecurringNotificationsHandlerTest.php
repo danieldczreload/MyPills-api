@@ -27,8 +27,10 @@ use PHPUnit\Framework\TestCase;
 use Profile\Domain\PatientProfile;
 use Profile\Domain\ProfileRepository;
 use Schedule\Domain\DailySchedule;
+use Schedule\Domain\ScheduleDeletedEvent;
 use Schedule\Domain\ScheduleRepository;
 use Schedule\Domain\ValueObject\TimeOfDay;
+use Shared\Application\Bus\EventBus;
 use Shared\Domain\TokenVault;
 use Shared\Domain\ValueObject\DoseEventId;
 use Shared\Domain\ValueObject\MedicationId;
@@ -111,6 +113,13 @@ final class CancelRecurringNotificationsHandlerTest extends TestCase
         $tokenVault = $this->createMock(TokenVault::class);
         $tokenVault->method('decrypt')->with('enc-refresh')->willReturn('dec-refresh');
 
+        $eventBus = $this->createMock(EventBus::class);
+        $eventBus->expects(self::once())->method('publish')->with(self::callback(
+            static fn (object $event): bool => $event instanceof ScheduleDeletedEvent
+                && $event->scheduleId === $scheduleId->value()
+                && $event->profileId === $profileId->value()
+        ));
+
         $handler = new CancelRecurringNotificationsHandler(
             $profileRepo,
             $medicationRepo,
@@ -119,7 +128,8 @@ final class CancelRecurringNotificationsHandlerTest extends TestCase
             $deviceRepo,
             $pushGateway,
             $mapRepo,
-            new CalendarEventRemover($linkRepo, $mapRepo, $resolver, $tokenVault)
+            new CalendarEventRemover($linkRepo, $mapRepo, $resolver, $tokenVault),
+            $eventBus
         );
 
         $command = new CancelRecurringNotificationsCommand(
@@ -140,7 +150,154 @@ final class CancelRecurringNotificationsHandlerTest extends TestCase
         self::assertSame(1, $data['schedulesTargeted']);
         self::assertSame(2, $data['pendingDosesCancelled']);
         self::assertSame(2, $data['calendarEventsDeleted']);
+        self::assertTrue($data['alarmCancelled']);
         self::assertTrue($data['pushCancelled']);
+    }
+
+    public function testCancelsAlarmOnlyDisablesNotifyAlarmAndMarksScheduleCancelled(): void
+    {
+        $profileId = new ProfileId('00000000-0000-0000-0000-000000000001');
+        $accountId = new UserId('00000000-0000-0000-0000-000000000002');
+        $medicationId = new MedicationId('00000000-0000-0000-0000-000000000003');
+        $scheduleId = new ScheduleId('00000000-0000-0000-0000-000000000004');
+        $createdAt = new \DateTimeImmutable('2026-10-01 08:00:00');
+
+        $profile = PatientProfile::create($profileId, $accountId, 'Test', new \DateTimeImmutable('1990-01-01'), 'male');
+        $medication = Medication::create($medicationId, $profileId, 'Amoxicillin', 'After meals');
+        $schedule = new DailySchedule($scheduleId, $medicationId, [new TimeOfDay(8, 0)], $createdAt, null, null, $createdAt, $createdAt, notifyAlarm: true, notifyPush: false, notifyCalendar: false);
+        $dose = DoseEvent::create(new DoseEventId('00000000-0000-0000-0000-000000000011'), $medicationId, $scheduleId, $createdAt->modify('+1 day'));
+
+        $profileRepo = $this->createMock(ProfileRepository::class);
+        $profileRepo->method('findById')->willReturn($profile);
+        $medicationRepo = $this->createMock(MedicationRepository::class);
+        $medicationRepo->method('findById')->willReturn($medication);
+
+        $schedRepo = $this->createMock(ScheduleRepository::class);
+        $schedRepo->method('findById')->willReturn($schedule);
+        $schedRepo->expects(self::once())->method('save')->with(self::callback(static function ($saved) use ($createdAt): bool {
+            return $saved instanceof DailySchedule
+                && !$saved->notifyAlarm()
+                && !$saved->notifyPush()
+                && !$saved->notifyCalendar()
+                && $saved->isCancelled()
+                && $saved->updatedAt() > $createdAt;
+        }));
+
+        $doseRepo = $this->createMock(DoseEventRepository::class);
+        $doseRepo->method('findPendingByScheduleIds')->willReturn([$dose]);
+        $doseRepo->expects(self::once())->method('deletePendingByScheduleIds')->with([$scheduleId]);
+
+        $device = DeviceToken::create($accountId, 'fcm-tok-alarm', 'android', 'es');
+        $deviceRepo = $this->createMock(DeviceTokenRepository::class);
+        $deviceRepo->method('findByAccountId')->willReturn([$device]);
+
+        $pushGateway = $this->createMock(PushNotificationGateway::class);
+        $pushGateway->expects(self::once())->method('send')->with(
+            'fcm-tok-alarm',
+            self::anything(),
+            self::anything(),
+            self::callback(static fn (array $data): bool => ($data['cancelAlarm'] ?? '') === '1' && ($data['cancelPush'] ?? '') === '0')
+        );
+
+        $mapRepo = $this->createMock(CalendarEventMappingRepository::class);
+        $mapRepo->method('findByDoseEventIds')->willReturn([]);
+
+        $handler = new CancelRecurringNotificationsHandler(
+            $profileRepo,
+            $medicationRepo,
+            $schedRepo,
+            $doseRepo,
+            $deviceRepo,
+            $pushGateway,
+            $mapRepo,
+            $this->unusedRemover($mapRepo)
+        );
+
+        $result = $handler(new CancelRecurringNotificationsCommand(
+            $profileId->value(),
+            $accountId->value(),
+            $scheduleId->value(),
+            medicationId: null,
+            cancelPush: false,
+            cancelCalendar: false,
+            deleteSchedule: false,
+            cancelAlarm: true
+        ));
+
+        self::assertTrue($result->isSuccess());
+        /** @var array<string, mixed> $data */
+        $data = $result->getValue();
+        self::assertTrue($data['alarmCancelled']);
+        self::assertFalse($data['pushCancelled']);
+        self::assertSame(1, $data['pendingDosesCancelled']);
+    }
+
+    public function testCancelsCalendarOnlyKeepsAlarmActiveAndScheduleUncancelled(): void
+    {
+        $profileId = new ProfileId('00000000-0000-0000-0000-000000000001');
+        $accountId = new UserId('00000000-0000-0000-0000-000000000002');
+        $medicationId = new MedicationId('00000000-0000-0000-0000-000000000003');
+        $scheduleId = new ScheduleId('00000000-0000-0000-0000-000000000004');
+        $createdAt = new \DateTimeImmutable('2026-10-01 08:00:00');
+
+        $profile = PatientProfile::create($profileId, $accountId, 'Test', new \DateTimeImmutable('1990-01-01'), 'male');
+        $medication = Medication::create($medicationId, $profileId, 'Amoxicillin', 'After meals');
+        $schedule = new DailySchedule($scheduleId, $medicationId, [new TimeOfDay(8, 0)], $createdAt, null, null, $createdAt, $createdAt, notifyAlarm: true, notifyPush: false, notifyCalendar: true);
+        $dose = DoseEvent::create(new DoseEventId('00000000-0000-0000-0000-000000000011'), $medicationId, $scheduleId, $createdAt->modify('+1 day'));
+
+        $profileRepo = $this->createMock(ProfileRepository::class);
+        $profileRepo->method('findById')->willReturn($profile);
+        $medicationRepo = $this->createMock(MedicationRepository::class);
+        $medicationRepo->method('findById')->willReturn($medication);
+
+        $schedRepo = $this->createMock(ScheduleRepository::class);
+        $schedRepo->method('findById')->willReturn($schedule);
+        $schedRepo->expects(self::once())->method('save')->with(self::callback(static function ($saved) use ($createdAt): bool {
+            return $saved instanceof DailySchedule
+                && $saved->notifyAlarm()
+                && !$saved->notifyCalendar()
+                && !$saved->isCancelled()
+                && $saved->updatedAt() > $createdAt;
+        }));
+
+        $doseRepo = $this->createMock(DoseEventRepository::class);
+        $doseRepo->method('findPendingByScheduleIds')->willReturn([$dose]);
+        $doseRepo->expects(self::never())->method('deletePendingByScheduleIds');
+
+        $pushGateway = $this->createMock(PushNotificationGateway::class);
+        $pushGateway->expects(self::never())->method('send');
+
+        $mapRepo = $this->createMock(CalendarEventMappingRepository::class);
+        $mapRepo->method('findByDoseEventIds')->willReturn([]);
+
+        $handler = new CancelRecurringNotificationsHandler(
+            $profileRepo,
+            $medicationRepo,
+            $schedRepo,
+            $doseRepo,
+            $this->createMock(DeviceTokenRepository::class),
+            $pushGateway,
+            $mapRepo,
+            $this->unusedRemover($mapRepo)
+        );
+
+        $result = $handler(new CancelRecurringNotificationsCommand(
+            $profileId->value(),
+            $accountId->value(),
+            $scheduleId->value(),
+            medicationId: null,
+            cancelPush: false,
+            cancelCalendar: true,
+            deleteSchedule: false,
+            cancelAlarm: false
+        ));
+
+        self::assertTrue($result->isSuccess());
+        /** @var array<string, mixed> $data */
+        $data = $result->getValue();
+        self::assertFalse($data['alarmCancelled']);
+        self::assertFalse($data['pushCancelled']);
+        self::assertSame(0, $data['pendingDosesCancelled']);
     }
 
     public function testKeepsMappingLocatableWhenRemoteDeleteFailsWithDefaultPush(): void

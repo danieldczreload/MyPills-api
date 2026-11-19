@@ -431,4 +431,43 @@ final class CreateScheduleHandlerTest extends TestCase
         $schedData = $result->getValue();
         self::assertNull($schedData['timezone']);
     }
+
+    public function testCreateScheduleWithCustomNotificationSwitches(): void
+    {
+        $profile = new PatientProfile(new ProfileId('prof-1'), new UserId('acc-1'), 'Name', new \DateTimeImmutable('1990-01-01'), 'male', null, new \DateTimeImmutable(), new \DateTimeImmutable());
+        $this->profileRepo->method('findById')->willReturn($profile);
+        $medication = new Medication(new MedicationId('med-1'), new ProfileId('prof-1'), 'Name', 'pill', 'instr', null, new \DateTimeImmutable(), new \DateTimeImmutable());
+        $this->medicationRepo->method('findById')->willReturn($medication);
+
+        $this->scheduleRepo->expects(self::once())->method('save')->with(self::callback(
+            static function (Schedule $schedule): bool {
+                self::assertFalse($schedule->notifyAlarm());
+                self::assertTrue($schedule->notifyPush());
+                self::assertTrue($schedule->notifyCalendar());
+
+                return true;
+            }
+        ));
+
+        $result = ($this->handler)(new CreateScheduleCommand(
+            'prof-1',
+            'acc-1',
+            'med-1',
+            'daily',
+            new \DateTimeImmutable('2026-10-06'),
+            '500',
+            'mg',
+            timesOfDay: [['hour' => 8, 'minute' => 0]],
+            notifyAlarm: false,
+            notifyPush: true,
+            notifyCalendar: true
+        ));
+
+        self::assertTrue($result->isSuccess());
+        /** @var array<string, mixed> $schedData */
+        $schedData = $result->getValue();
+        self::assertFalse($schedData['notifyAlarm']);
+        self::assertTrue($schedData['notifyPush']);
+        self::assertTrue($schedData['notifyCalendar']);
+    }
 }

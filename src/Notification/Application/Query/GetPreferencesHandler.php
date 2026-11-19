@@ -33,6 +33,7 @@ final class GetPreferencesHandler
 
         return Result::success([
             'doseRemindersEnabled' => $preferences->doseRemindersEnabled(),
+            'alarmRemindersEnabled' => $preferences->alarmRemindersEnabled(),
             'missedDoseNudgesEnabled' => $preferences->missedDoseNudgesEnabled(),
             'refillAlertsEnabled' => $preferences->refillAlertsEnabled(),
             'weeklyStreakSummariesEnabled' => $preferences->weeklyStreakSummariesEnabled(),

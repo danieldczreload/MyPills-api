@@ -13,7 +13,8 @@ final class UpdatePreferencesCommand
         public readonly ?bool $refillAlertsEnabled = null,
         public readonly ?bool $weeklyStreakSummariesEnabled = null,
         public readonly ?bool $inAppBannersEnabled = null,
-        public readonly ?int $reminderMinutesBefore = null
+        public readonly ?int $reminderMinutesBefore = null,
+        public readonly ?bool $alarmRemindersEnabled = null
     ) {
     }
 }

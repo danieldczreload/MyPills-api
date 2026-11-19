@@ -75,6 +75,7 @@ final class NotificationControllerEndpointsTest extends WebTestCase
         self::assertSame(Response::HTTP_OK, $client->getResponse()->getStatusCode());
         $prefs = $this->decodeResponse($client->getResponse()->getContent());
         self::assertTrue($prefs['doseRemindersEnabled']);
+        self::assertTrue($prefs['alarmRemindersEnabled']);
 
         // 3. PATCH /notifications/preferences with invalid JSON
         $client->request('PATCH', '/api/v1/notifications/preferences', [], [], $headers, 'invalid-json');
@@ -82,6 +83,17 @@ final class NotificationControllerEndpointsTest extends WebTestCase
 
         // 4. PATCH /notifications/preferences with non-object JSON
         $client->request('PATCH', '/api/v1/notifications/preferences', [], [], $headers, '"not an object"');
+        self::assertSame(Response::HTTP_UNPROCESSABLE_ENTITY, $client->getResponse()->getStatusCode());
+
+        // 4b. PATCH /notifications/preferences with non-boolean alarmRemindersEnabled returns 422
+        $client->request(
+            'PATCH',
+            '/api/v1/notifications/preferences',
+            [],
+            [],
+            $headers,
+            $this->encode(['alarmRemindersEnabled' => 'false'])
+        );
         self::assertSame(Response::HTTP_UNPROCESSABLE_ENTITY, $client->getResponse()->getStatusCode());
 
         // 5. PATCH /notifications/preferences with valid updates
@@ -93,6 +105,7 @@ final class NotificationControllerEndpointsTest extends WebTestCase
             $headers,
             $this->encode([
                 'doseRemindersEnabled' => false,
+                'alarmRemindersEnabled' => false,
                 'missedDoseNudgesEnabled' => true,
                 'reminderMinutesBefore' => 15,
             ])
@@ -100,7 +113,14 @@ final class NotificationControllerEndpointsTest extends WebTestCase
         self::assertSame(Response::HTTP_OK, $client->getResponse()->getStatusCode());
         $updatedPrefs = $this->decodeResponse($client->getResponse()->getContent());
         self::assertFalse($updatedPrefs['doseRemindersEnabled']);
+        self::assertFalse($updatedPrefs['alarmRemindersEnabled']);
         self::assertSame(15, $updatedPrefs['reminderMinutesBefore']);
+
+        // 5b. GET /notifications/preferences reflects persisted alarmRemindersEnabled
+        $client->request('GET', '/api/v1/notifications/preferences', [], [], $headers);
+        self::assertSame(Response::HTTP_OK, $client->getResponse()->getStatusCode());
+        $reloadedPrefs = $this->decodeResponse($client->getResponse()->getContent());
+        self::assertFalse($reloadedPrefs['alarmRemindersEnabled']);
 
         // 6. POST /devices with invalid JSON
         $client->request('POST', '/api/v1/devices', [], [], $headers, 'invalid-json');

@@ -138,8 +138,83 @@ final class CancelNotificationHandlerTest extends TestCase
         $data = $result->getValue();
         self::assertSame($doseEventId->value(), $data['doseEventId']);
         self::assertSame('skipped', $data['status']);
+        self::assertTrue($data['alarmCancelled']);
         self::assertTrue($data['pushCancelled']);
         self::assertSame(1, $data['calendarEventsDeleted']);
+    }
+
+    public function testCancelsAlarmOnlyWithoutMarkingPushCancelled(): void
+    {
+        $profileId = new ProfileId('00000000-0000-0000-0000-000000000001');
+        $accountId = new UserId('00000000-0000-0000-0000-000000000002');
+        $medicationId = new MedicationId('00000000-0000-0000-0000-000000000003');
+        $scheduleId = new ScheduleId('00000000-0000-0000-0000-000000000004');
+        $doseEventId = new DoseEventId('00000000-0000-0000-0000-000000000005');
+
+        $profile = PatientProfile::create($profileId, $accountId, 'Test Patient', new \DateTimeImmutable('1990-01-01'), 'female');
+        $medication = Medication::create($medicationId, $profileId, 'Ibuprofen', 'With food');
+        $doseEvent = DoseEvent::create($doseEventId, $medicationId, $scheduleId, new \DateTimeImmutable('+2 hours'));
+
+        $profileRepo = $this->createMock(ProfileRepository::class);
+        $profileRepo->method('findById')->willReturn($profile);
+
+        $medicationRepo = $this->createMock(MedicationRepository::class);
+        $medicationRepo->method('findById')->willReturn($medication);
+
+        $doseRepo = $this->createMock(DoseEventRepository::class);
+        $doseRepo->method('findById')->willReturn($doseEvent);
+        $doseRepo->expects(self::once())->method('save')->with(self::callback(static fn (DoseEvent $d): bool => $d->status() === 'skipped'));
+
+        $device = DeviceToken::create($accountId, 'alarm-device-token', 'android', 'es');
+        $deviceRepo = $this->createMock(DeviceTokenRepository::class);
+        $deviceRepo->method('findByAccountId')->with($accountId)->willReturn([$device]);
+
+        $pushGateway = $this->createMock(PushNotificationGateway::class);
+        $pushGateway->expects(self::once())->method('send')->with(
+            'alarm-device-token',
+            'Recordatorio cancelado',
+            'El recordatorio de Ibuprofen ha sido cancelado.',
+            self::callback(static function (array $data): bool {
+                return ($data['type'] ?? '') === 'cancel_notification'
+                    && ($data['cancelAlarm'] ?? '') === '1'
+                    && ($data['cancelPush'] ?? '') === '0';
+            })
+        );
+
+        $mapRepo = $this->createMock(CalendarEventMappingRepository::class);
+        $mapRepo->expects(self::never())->method('findByDoseEventId');
+
+        $handler = new CancelNotificationHandler(
+            $profileRepo,
+            $medicationRepo,
+            $doseRepo,
+            $deviceRepo,
+            $pushGateway,
+            $mapRepo,
+            new CalendarEventRemover(
+                $this->createMock(CalendarLinkRepository::class),
+                $mapRepo,
+                new CalendarProviderResolver($this->createMock(CalendarProvider::class), $this->createMock(CalendarProvider::class)),
+                $this->createMock(TokenVault::class)
+            )
+        );
+
+        $result = $handler(new CancelNotificationCommand(
+            $profileId->value(),
+            $accountId->value(),
+            $doseEventId->value(),
+            cancelPush: false,
+            cancelCalendar: false,
+            cancelAlarm: true
+        ));
+
+        self::assertTrue($result->isSuccess());
+        /** @var array<string, mixed> $data */
+        $data = $result->getValue();
+        self::assertSame('skipped', $data['status']);
+        self::assertTrue($data['alarmCancelled']);
+        self::assertFalse($data['pushCancelled']);
+        self::assertSame(0, $data['calendarEventsDeleted']);
     }
 
     public function testKeepsMappingWhenRemoteCalendarDeleteFails(): void

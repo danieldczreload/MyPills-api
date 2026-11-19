@@ -26,7 +26,8 @@ final class GetPreferencesHandlerTest extends TestCase
             new \DateTimeImmutable(),
             new \DateTimeImmutable(),
             true,
-            10
+            10,
+            false
         );
 
         $repository = $this->createMock(NotificationPreferencesRepository::class);
@@ -39,6 +40,7 @@ final class GetPreferencesHandlerTest extends TestCase
         /** @var array<string, mixed> $data */
         $data = $result->getValue();
         self::assertTrue($data['doseRemindersEnabled']);
+        self::assertFalse($data['alarmRemindersEnabled']);
         self::assertTrue($data['inAppBannersEnabled']);
         self::assertSame(10, $data['reminderMinutesBefore']);
     }
@@ -57,6 +59,7 @@ final class GetPreferencesHandlerTest extends TestCase
         /** @var array<string, mixed> $data */
         $data = $result->getValue();
         self::assertTrue($data['doseRemindersEnabled']);
+        self::assertTrue($data['alarmRemindersEnabled']);
         self::assertTrue($data['inAppBannersEnabled']);
         self::assertSame(0, $data['reminderMinutesBefore']);
     }

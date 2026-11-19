@@ -20,10 +20,13 @@ abstract class Schedule
         protected readonly ?\DateTimeImmutable $endDate,
         protected readonly ?string $clientId,
         protected readonly \DateTimeImmutable $createdAt,
-        protected readonly \DateTimeImmutable $updatedAt,
+        protected \DateTimeImmutable $updatedAt,
         protected readonly ?Dose $dose = null,
         protected ?\DateTimeImmutable $cancelledAt = null,
-        ?string $timezone = null
+        ?string $timezone = null,
+        protected bool $notifyAlarm = true,
+        protected bool $notifyPush = false,
+        protected bool $notifyCalendar = false
     ) {
         $this->timezone = self::normalizeTimezone($timezone);
     }
@@ -78,6 +81,21 @@ abstract class Schedule
         return $this->timezone;
     }
 
+    public function notifyAlarm(): bool
+    {
+        return $this->notifyAlarm;
+    }
+
+    public function notifyPush(): bool
+    {
+        return $this->notifyPush;
+    }
+
+    public function notifyCalendar(): bool
+    {
+        return $this->notifyCalendar;
+    }
+
     /**
      * Null means the schedule follows the profile zone.
      * A stored value is pinned and is not rebuilt when the profile zone changes.
@@ -104,6 +122,35 @@ abstract class Schedule
     public function markCancelled(\DateTimeImmutable $at): void
     {
         $this->cancelledAt = $at;
+        $this->updatedAt = $at;
+    }
+
+    public function disableNotificationChannels(
+        bool $disableAlarm,
+        bool $disablePush,
+        bool $disableCalendar,
+        \DateTimeImmutable $at
+    ): bool {
+        $changed = false;
+
+        if ($disableAlarm && $this->notifyAlarm) {
+            $this->notifyAlarm = false;
+            $changed = true;
+        }
+        if ($disablePush && $this->notifyPush) {
+            $this->notifyPush = false;
+            $changed = true;
+        }
+        if ($disableCalendar && $this->notifyCalendar) {
+            $this->notifyCalendar = false;
+            $changed = true;
+        }
+
+        if ($changed) {
+            $this->updatedAt = $at;
+        }
+
+        return $changed;
     }
 
     abstract public function type(): string;

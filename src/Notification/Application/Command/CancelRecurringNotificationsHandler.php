@@ -14,7 +14,9 @@ use Notification\Domain\DeviceTokenRepository;
 use Notification\Domain\PushNotificationGateway;
 use Profile\Domain\ProfileRepository;
 use Schedule\Domain\Schedule;
+use Schedule\Domain\ScheduleDeletedEvent;
 use Schedule\Domain\ScheduleRepository;
+use Shared\Application\Bus\EventBus;
 use Shared\Domain\Failure;
 use Shared\Domain\Result;
 use Shared\Domain\ValueObject\MedicationId;
@@ -34,7 +36,8 @@ final class CancelRecurringNotificationsHandler
         private readonly DeviceTokenRepository $deviceTokenRepository,
         private readonly PushNotificationGateway $pushNotificationGateway,
         private readonly CalendarEventMappingRepository $mappingRepository,
-        private readonly CalendarEventRemover $calendarEventRemover
+        private readonly CalendarEventRemover $calendarEventRemover,
+        private readonly ?EventBus $eventBus = null
     ) {
     }
 
@@ -96,8 +99,12 @@ final class CancelRecurringNotificationsHandler
             $calendarEventsDeleted = $this->calendarEventRemover->remove($profileId, $mappings);
         }
 
+        $cancelAlarm = $command->shouldCancelAlarm();
+        $cancelReminder = $command->cancelPush || $cancelAlarm;
         $pushCancelled = false;
-        if ($command->cancelPush) {
+        $alarmCancelled = false;
+
+        if ($cancelReminder) {
             $this->retainDosesWithLeftoverMappings($pendingDoseEvents, $pendingDoseEventIds);
 
             if ($scheduleIds !== []) {
@@ -111,6 +118,8 @@ final class CancelRecurringNotificationsHandler
                 'scheduleId' => $command->scheduleId ?? '',
                 'medicationId' => $command->medicationId ?? '',
                 'cancelledDosesCount' => (string) count($pendingDoseEvents),
+                'cancelAlarm' => $cancelAlarm ? '1' : '0',
+                'cancelPush' => $command->cancelPush ? '1' : '0',
             ];
 
             $title = 'Recordatorios recurrentes cancelados';
@@ -129,19 +138,39 @@ final class CancelRecurringNotificationsHandler
                 }
             }
 
-            $pushCancelled = true;
+            $pushCancelled = $command->cancelPush;
+            $alarmCancelled = $cancelAlarm;
         }
 
         if ($command->deleteSchedule && $command->scheduleId !== null && $schedules !== []) {
-            $this->scheduleRepository->delete($schedules[0]);
+            $deletedSchedule = $schedules[0];
+            $this->scheduleRepository->delete($deletedSchedule);
+            $this->eventBus?->publish(new ScheduleDeletedEvent(
+                $deletedSchedule->id()->value(),
+                $profileId->value()
+            ));
         } else {
             $cancelledAt = new \DateTimeImmutable();
             foreach ($schedules as $schedule) {
-                if ($schedule->isCancelled()) {
-                    continue;
+                $channelsChanged = $schedule->disableNotificationChannels(
+                    $cancelAlarm,
+                    $command->cancelPush,
+                    $command->cancelCalendar,
+                    $cancelledAt
+                );
+                $noActiveChannels = !$schedule->notifyAlarm()
+                    && !$schedule->notifyPush()
+                    && !$schedule->notifyCalendar();
+                $shouldMarkCancelled = !$schedule->isCancelled()
+                    && ($cancelReminder || $noActiveChannels);
+
+                if ($shouldMarkCancelled) {
+                    $schedule->markCancelled($cancelledAt);
                 }
-                $schedule->markCancelled($cancelledAt);
-                $this->scheduleRepository->save($schedule);
+
+                if ($channelsChanged || $shouldMarkCancelled) {
+                    $this->scheduleRepository->save($schedule);
+                }
             }
         }
 
@@ -150,8 +179,9 @@ final class CancelRecurringNotificationsHandler
             'scheduleId' => $command->scheduleId,
             'medicationId' => $command->medicationId,
             'schedulesTargeted' => count($schedules),
-            'pendingDosesCancelled' => count($pendingDoseEvents),
+            'pendingDosesCancelled' => $cancelReminder ? count($pendingDoseEvents) : 0,
             'calendarEventsDeleted' => $calendarEventsDeleted,
+            'alarmCancelled' => $alarmCancelled,
             'pushCancelled' => $pushCancelled,
         ]);
     }

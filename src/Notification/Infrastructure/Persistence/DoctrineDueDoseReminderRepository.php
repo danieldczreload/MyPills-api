@@ -31,7 +31,7 @@ final class DoctrineDueDoseReminderRepository implements DueDoseReminderReposito
         [$minWindow, $maxWindow] = ReminderDispatchPolicy::queryWindow($now);
 
         $dql = '
-            SELECT 
+            SELECT
                 d.id AS dose_id,
                 d.scheduledAt AS scheduled_at,
                 m.name AS medication_name,
@@ -50,6 +50,8 @@ final class DoctrineDueDoseReminderRepository implements DueDoseReminderReposito
               AND d.reminderSentAt IS NULL
               AND d.scheduledAt >= :minWindow
               AND d.scheduledAt <= :maxWindow
+              AND s.notifyPush = true
+              AND s.cancelledAt IS NULL
             ORDER BY d.scheduledAt ASC
         ';
 

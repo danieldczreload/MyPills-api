@@ -188,7 +188,17 @@ final class CalendarHandlersTest extends TestCase
         $med = new Medication($medId, new ProfileId('prof-1'), 'Aspirin', 'pill', 'instructions', null, new \DateTimeImmutable(), new \DateTimeImmutable());
         $medRepo->method('findByProfileId')->willReturn([$med]);
 
-        $sched = new DailySchedule(new ScheduleId('sch-1'), $medId, [new TimeOfDay(8, 0)], new \DateTimeImmutable(), null, null, new \DateTimeImmutable(), new \DateTimeImmutable());
+        $sched = new DailySchedule(
+            new ScheduleId('sch-1'),
+            $medId,
+            [new TimeOfDay(8, 0)],
+            new \DateTimeImmutable(),
+            null,
+            null,
+            new \DateTimeImmutable(),
+            new \DateTimeImmutable(),
+            notifyCalendar: true
+        );
         $schedRepo->method('findByMedicationIds')->willReturn([$sched]);
 
         $dose = DoseEvent::create(new DoseEventId('dose-1'), $medId, new ScheduleId('sch-1'), new \DateTimeImmutable('+1 day'));
@@ -251,7 +261,18 @@ final class CalendarHandlersTest extends TestCase
         $med = Medication::create($medId, new ProfileId('prof-1'), 'Aspirin', 'instructions');
         $medRepo->method('findByProfileId')->willReturn([$med]);
 
-        $sched = new DailySchedule(new ScheduleId('sch-1'), $medId, [new TimeOfDay(16, 25)], new \DateTimeImmutable(), null, null, new \DateTimeImmutable(), new \DateTimeImmutable(), \Shared\Domain\ValueObject\Dose::of('100', 'mg'));
+        $sched = new DailySchedule(
+            new ScheduleId('sch-1'),
+            $medId,
+            [new TimeOfDay(16, 25)],
+            new \DateTimeImmutable(),
+            null,
+            null,
+            new \DateTimeImmutable(),
+            new \DateTimeImmutable(),
+            \Shared\Domain\ValueObject\Dose::of('100', 'mg'),
+            notifyCalendar: true
+        );
         $schedRepo->method('findByMedicationIds')->willReturn([$sched]);
 
         $dose = DoseEvent::create(new DoseEventId('dose-1'), $medId, new ScheduleId('sch-1'), new \DateTimeImmutable('2026-08-29T22:25:00+00:00'));
@@ -343,7 +364,8 @@ final class CalendarHandlersTest extends TestCase
                 new \DateTimeImmutable(),
                 \Shared\Domain\ValueObject\Dose::of('500', 'mg'),
                 null,
-                'America/El_Salvador'
+                'America/El_Salvador',
+                notifyCalendar: true
             ),
         ]);
         $doseRepo->method('findByScheduleIdsAndRange')->willReturn([
@@ -378,5 +400,73 @@ final class CalendarHandlersTest extends TestCase
 
         $res = $handler(new SyncCalendarCommand('acc-1', 'prof-1'));
         self::assertTrue($res->isSuccess());
+    }
+
+    public function testSyncCalendarSkipsSchedulesWithoutNotifyCalendarAndCancelledSchedules(): void
+    {
+        $linkRepo = $this->createMock(CalendarLinkRepository::class);
+        $mapRepo = $this->createMock(CalendarEventMappingRepository::class);
+        $profileRepo = $this->createMock(ProfileRepository::class);
+        $medRepo = $this->createMock(MedicationRepository::class);
+        $schedRepo = $this->createMock(ScheduleRepository::class);
+        $doseRepo = $this->createMock(DoseEventRepository::class);
+        $google = $this->createMock(CalendarProvider::class);
+        $microsoft = $this->createMock(CalendarProvider::class);
+        $resolver = new CalendarProviderResolver($google, $microsoft);
+        $vault = $this->createMock(TokenVault::class);
+
+        $handler = new SyncCalendarHandler(
+            $linkRepo,
+            $mapRepo,
+            $profileRepo,
+            $medRepo,
+            $schedRepo,
+            $doseRepo,
+            $resolver,
+            $vault
+        );
+
+        $profile = new PatientProfile(new ProfileId('prof-1'), new UserId('acc-1'), 'Name', new \DateTimeImmutable('1990-01-01'), 'male', null, new \DateTimeImmutable(), new \DateTimeImmutable());
+        $profileRepo->method('findById')->willReturn($profile);
+        $linkRepo->method('findByProfile')->willReturn([CalendarLink::create(new ProfileId('prof-1'), 'google', 'enc-refresh')]);
+
+        $medId = new MedicationId('med-1');
+        $medRepo->method('findByProfileId')->willReturn([Medication::create($medId, new ProfileId('prof-1'), 'Aspirin', 'instructions')]);
+
+        $alarmOnly = new DailySchedule(
+            new ScheduleId('sch-alarm'),
+            $medId,
+            [new TimeOfDay(8, 0)],
+            new \DateTimeImmutable(),
+            null,
+            null,
+            new \DateTimeImmutable(),
+            new \DateTimeImmutable(),
+            notifyAlarm: true,
+            notifyPush: false,
+            notifyCalendar: false
+        );
+        $cancelledCalendar = new DailySchedule(
+            new ScheduleId('sch-cancelled'),
+            $medId,
+            [new TimeOfDay(9, 0)],
+            new \DateTimeImmutable(),
+            null,
+            null,
+            new \DateTimeImmutable(),
+            new \DateTimeImmutable(),
+            cancelledAt: new \DateTimeImmutable(),
+            notifyCalendar: true
+        );
+        $schedRepo->method('findByMedicationIds')->willReturn([$alarmOnly, $cancelledCalendar]);
+
+        $doseRepo->expects(self::never())->method('findByScheduleIdsAndRange');
+        $google->expects(self::never())->method('refreshAccessToken');
+        $google->expects(self::never())->method('upsertEvent');
+
+        $res = $handler(new SyncCalendarCommand('acc-1', 'prof-1'));
+        self::assertTrue($res->isSuccess());
+        self::assertSame(0, $res->getValue()['eventsCreated']);
+        self::assertSame('NO_CALENDAR_SCHEDULES', $res->getValue()['skipped'][0]['reason']);
     }
 }

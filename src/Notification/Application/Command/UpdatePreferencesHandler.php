@@ -36,13 +36,15 @@ final class UpdatePreferencesHandler
             $command->refillAlertsEnabled,
             $command->weeklyStreakSummariesEnabled,
             $command->inAppBannersEnabled,
-            $command->reminderMinutesBefore
+            $command->reminderMinutesBefore,
+            $command->alarmRemindersEnabled
         );
 
         $this->preferencesRepository->save($preferences);
 
         return Result::success([
             'doseRemindersEnabled' => $preferences->doseRemindersEnabled(),
+            'alarmRemindersEnabled' => $preferences->alarmRemindersEnabled(),
             'missedDoseNudgesEnabled' => $preferences->missedDoseNudgesEnabled(),
             'refillAlertsEnabled' => $preferences->refillAlertsEnabled(),
             'weeklyStreakSummariesEnabled' => $preferences->weeklyStreakSummariesEnabled(),

@@ -26,6 +26,9 @@ final class ScheduleView
             'dose' => $schedule->dose()?->toApiArray(),
             'timezone' => $schedule->timezone(),
             'clientId' => $schedule->clientId(),
+            'notifyAlarm' => $schedule->notifyAlarm(),
+            'notifyPush' => $schedule->notifyPush(),
+            'notifyCalendar' => $schedule->notifyCalendar(),
             'createdAt' => $schedule->createdAt()->format(\DateTimeInterface::ATOM),
             'updatedAt' => $schedule->updatedAt()->format(\DateTimeInterface::ATOM),
         ];

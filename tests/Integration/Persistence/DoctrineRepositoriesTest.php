@@ -18,6 +18,7 @@ use Identity\Infrastructure\Persistence\DoctrineRefreshTokenRepository;
 use Medication\Domain\Medication;
 use Medication\Infrastructure\Persistence\DoctrineMedicationRepository;
 use Notification\Domain\DeviceToken;
+use Notification\Domain\DueDoseReminder;
 use Notification\Domain\NotificationPreferences;
 use Notification\Infrastructure\Persistence\DoctrineDeviceTokenRepository;
 use Notification\Infrastructure\Persistence\DoctrineDueDoseReminderRepository;
@@ -162,6 +163,30 @@ final class DoctrineRepositoriesTest extends KernelTestCase
         self::assertNotNull($foundDaily);
         self::assertSame('daily', $foundDaily->type());
         self::assertSame('500 mg', $foundDaily->dose()?->display());
+        self::assertTrue($foundDaily->notifyAlarm());
+        self::assertFalse($foundDaily->notifyPush());
+        self::assertFalse($foundDaily->notifyCalendar());
+
+        $customDaily = new DailySchedule(
+            ScheduleId::generate(),
+            $medId,
+            [new TimeOfDay(8, 0)],
+            $now,
+            null,
+            null,
+            $now,
+            $now,
+            notifyAlarm: false,
+            notifyPush: true,
+            notifyCalendar: true
+        );
+        $schedRepo->save($customDaily);
+        $foundCustom = $schedRepo->findById($customDaily->id());
+        self::assertNotNull($foundCustom);
+        self::assertFalse($foundCustom->notifyAlarm());
+        self::assertTrue($foundCustom->notifyPush());
+        self::assertTrue($foundCustom->notifyCalendar());
+        $schedRepo->delete($customDaily);
 
         $foundInterval = $schedRepo->findById($intervalId);
         self::assertNotNull($foundInterval);
@@ -216,9 +241,15 @@ final class DoctrineRepositoriesTest extends KernelTestCase
         $foundPrefs = $prefRepo->findByAccountId($userId);
         self::assertNotNull($foundPrefs);
         self::assertTrue($foundPrefs->doseRemindersEnabled());
+        self::assertTrue($foundPrefs->alarmRemindersEnabled());
 
-        $prefs->update(reminderMinutesBefore: 15);
+        $prefs->update(reminderMinutesBefore: 15, alarmRemindersEnabled: false);
         $prefRepo->save($prefs);
+
+        $updatedPrefs = $prefRepo->findByAccountId($userId);
+        self::assertNotNull($updatedPrefs);
+        self::assertSame(15, $updatedPrefs->reminderMinutesBefore());
+        self::assertFalse($updatedPrefs->alarmRemindersEnabled());
 
         $devToken = DeviceToken::create($userId, 'fcm-token-' . uniqid(), 'android', 'es-MX');
         $deviceRepo->save($devToken);
@@ -233,7 +264,92 @@ final class DoctrineRepositoriesTest extends KernelTestCase
         self::assertCount(1, $byAccount);
 
         $due = $dueRepo->findDueDoseReminders(new \DateTimeImmutable());
-        self::assertSame([], $due);
+        $userDue = array_values(array_filter($due, static fn (DueDoseReminder $r) => $r->accountId->equals($userId)));
+        self::assertSame([], $userDue);
+
+        /** @var DoctrineProfileRepository $profileRepo */
+        $profileRepo = $container->get(DoctrineProfileRepository::class);
+        /** @var DoctrineMedicationRepository $medRepo */
+        $medRepo = $container->get(DoctrineMedicationRepository::class);
+        /** @var DoctrineScheduleRepository $schedRepo */
+        $schedRepo = $container->get(DoctrineScheduleRepository::class);
+        /** @var DoctrineDoseEventRepository $doseRepo */
+        $doseRepo = $container->get(DoctrineDoseEventRepository::class);
+
+        $now = new \DateTimeImmutable('2026-11-10 12:00:00', new \DateTimeZone('UTC'));
+        $profile = new PatientProfile(ProfileId::generate(), $userId, 'Test User', new \DateTimeImmutable('1990-01-01'), 'male', null, $now, $now);
+        $profileRepo->save($profile);
+
+        $med = Medication::create(MedicationId::generate(), $profile->id(), 'Aspirin', null, null, null);
+        $medRepo->save($med);
+
+        $schedNoPush = new DailySchedule(
+            ScheduleId::generate(),
+            $med->id(),
+            [new TimeOfDay(12, 0)],
+            $now,
+            null,
+            null,
+            $now,
+            $now,
+            notifyPush: false
+        );
+        $schedRepo->save($schedNoPush);
+
+        $schedWithPush = new DailySchedule(
+            ScheduleId::generate(),
+            $med->id(),
+            [new TimeOfDay(12, 0)],
+            $now,
+            null,
+            null,
+            $now,
+            $now,
+            notifyPush: true
+        );
+        $schedRepo->save($schedWithPush);
+
+        $schedCancelledWithPush = new DailySchedule(
+            ScheduleId::generate(),
+            $med->id(),
+            [new TimeOfDay(12, 0)],
+            $now,
+            null,
+            null,
+            $now,
+            $now,
+            cancelledAt: $now,
+            notifyPush: true
+        );
+        $schedRepo->save($schedCancelledWithPush);
+
+        $doseNoPush = DoseEvent::create(DoseEventId::generate(), $med->id(), $schedNoPush->id(), $now, 'pending', null, null);
+        $doseRepo->save($doseNoPush);
+
+        $doseWithPush = DoseEvent::create(DoseEventId::generate(), $med->id(), $schedWithPush->id(), $now, 'pending', null, null);
+        $doseRepo->save($doseWithPush);
+
+        $doseCancelled = DoseEvent::create(DoseEventId::generate(), $med->id(), $schedCancelledWithPush->id(), $now, 'pending', null, null);
+        $doseRepo->save($doseCancelled);
+
+        $reminderCheckTime = new \DateTimeImmutable('2026-11-10 11:45:00', new \DateTimeZone('UTC'));
+        $dueReminders = $dueRepo->findDueDoseReminders($reminderCheckTime);
+        $userReminders = array_values(array_filter(
+            $dueReminders,
+            static fn (DueDoseReminder $r) => $r->accountId->equals($userId)
+        ));
+
+        self::assertCount(1, $userReminders);
+        self::assertTrue($userReminders[0]->doseEventId->equals($doseWithPush->id()));
+
+        $doseRepo->delete($doseNoPush);
+        $doseRepo->delete($doseWithPush);
+        $doseRepo->delete($doseCancelled);
+        $schedRepo->delete($schedNoPush);
+        $schedRepo->delete($schedWithPush);
+        $schedRepo->delete($schedCancelledWithPush);
+        $medRepo->delete($med);
+        $profileRepo->delete($profile);
 
         $deviceRepo->delete($devToken);
     }

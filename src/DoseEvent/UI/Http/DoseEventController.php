@@ -97,19 +97,48 @@ final class DoseEventController extends ApiController
             }
         }
 
-        $cancelPush = !array_key_exists('cancelPush', $data) || (bool) $data['cancelPush'];
-        $cancelCalendar = !array_key_exists('cancelCalendar', $data) || (bool) $data['cancelCalendar'];
+        $cancelPush = $this->parseOptionalBool($data, 'cancelPush', true);
+        if ($cancelPush instanceof JsonResponse) {
+            return $cancelPush;
+        }
+        $cancelCalendar = $this->parseOptionalBool($data, 'cancelCalendar', true);
+        if ($cancelCalendar instanceof JsonResponse) {
+            return $cancelCalendar;
+        }
+        $cancelAlarm = $this->parseOptionalBool($data, 'cancelAlarm', $cancelPush);
+        if ($cancelAlarm instanceof JsonResponse) {
+            return $cancelAlarm;
+        }
 
         $command = new \Notification\Application\Command\CancelNotificationCommand(
             $id,
             $this->getAuthenticatedUserId()->value(),
             $doseEventId,
             $cancelPush,
-            $cancelCalendar
+            $cancelCalendar,
+            $cancelAlarm
         );
 
         $result = $this->commandBus->dispatch($command);
 
         return $this->respond($result);
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     */
+    private function parseOptionalBool(array $data, string $field, bool $default): bool|JsonResponse
+    {
+        if (!array_key_exists($field, $data) || $data[$field] === null) {
+            return $default;
+        }
+
+        if (!is_bool($data[$field])) {
+            return $this->respondWithFailure(\Shared\Domain\Failure::validation(
+                sprintf('%s must be a boolean.', $field)
+            ));
+        }
+
+        return $data[$field];
     }
 }

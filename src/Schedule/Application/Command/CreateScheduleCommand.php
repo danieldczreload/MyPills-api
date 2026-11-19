@@ -27,7 +27,10 @@ final class CreateScheduleCommand
         public readonly ?array $endAt = null,
         public readonly ?array $daysOfWeek = null,
         public readonly ?string $clientId = null,
-        public readonly ?string $timezone = null
+        public readonly ?string $timezone = null,
+        public readonly bool $notifyAlarm = true,
+        public readonly bool $notifyPush = false,
+        public readonly bool $notifyCalendar = false
     ) {
     }
 }

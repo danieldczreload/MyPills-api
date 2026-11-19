@@ -75,16 +75,19 @@ final class NotificationDomainTest extends TestCase
 
         self::assertTrue($prefs->accountId()->equals($userId));
         self::assertTrue($prefs->doseRemindersEnabled());
+        self::assertTrue($prefs->alarmRemindersEnabled());
         self::assertTrue($prefs->inAppBannersEnabled());
         self::assertSame(0, $prefs->reminderMinutesBefore());
 
         $prefs->update(
             doseRemindersEnabled: false,
             inAppBannersEnabled: false,
-            reminderMinutesBefore: 15
+            reminderMinutesBefore: 15,
+            alarmRemindersEnabled: false
         );
 
         self::assertFalse($prefs->doseRemindersEnabled());
+        self::assertFalse($prefs->alarmRemindersEnabled());
         self::assertFalse($prefs->inAppBannersEnabled());
         self::assertSame(15, $prefs->reminderMinutesBefore());
     }

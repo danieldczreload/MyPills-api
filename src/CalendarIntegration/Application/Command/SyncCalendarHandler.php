@@ -14,6 +14,7 @@ use CalendarIntegration\Domain\CalendarLinkStatus;
 use DoseEvent\Domain\DoseEventRepository;
 use Medication\Domain\MedicationRepository;
 use Profile\Domain\ProfileRepository;
+use Schedule\Domain\Schedule;
 use Schedule\Domain\ScheduleRepository;
 use Shared\Domain\Result;
 use Shared\Domain\Failure;
@@ -90,18 +91,31 @@ final class SyncCalendarHandler
 
             $medicationIds = array_map(static fn ($med) => $med->id(), $medications);
             $schedules = $this->scheduleRepository->findByMedicationIds($medicationIds);
-            $scheduleMap = [];
-            foreach ($schedules as $schedule) {
-                $scheduleMap[$schedule->id()->value()] = $schedule;
-            }
-            $scheduleIds = array_map(static fn ($sch) => $sch->id(), $schedules);
 
-            if (count($scheduleIds) === 0) {
+            if (count($schedules) === 0) {
                 foreach ($links as $link) {
                     $skipped[] = ['profileId' => $profile->id()->value(), 'reason' => 'NO_SCHEDULES'];
                 }
                 continue;
             }
+
+            $calendarSchedules = array_values(array_filter(
+                $schedules,
+                static fn (Schedule $sch): bool => $sch->notifyCalendar() && !$sch->isCancelled()
+            ));
+
+            if (count($calendarSchedules) === 0) {
+                foreach ($links as $link) {
+                    $skipped[] = ['profileId' => $profile->id()->value(), 'reason' => 'NO_CALENDAR_SCHEDULES'];
+                }
+                continue;
+            }
+
+            $scheduleMap = [];
+            foreach ($calendarSchedules as $schedule) {
+                $scheduleMap[$schedule->id()->value()] = $schedule;
+            }
+            $scheduleIds = array_map(static fn ($sch) => $sch->id(), $calendarSchedules);
 
             $doseEvents = $this->doseEventRepository->findByScheduleIdsAndRange($scheduleIds, $now, $to);
             if (count($doseEvents) === 0) {

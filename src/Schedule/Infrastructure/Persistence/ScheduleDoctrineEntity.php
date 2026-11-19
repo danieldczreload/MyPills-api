@@ -52,6 +52,15 @@ abstract class ScheduleDoctrineEntity
     #[ORM\Column(type: 'string', length: 100, nullable: true)]
     protected ?string $timezone = null;
 
+    #[ORM\Column(type: 'boolean', options: ['default' => true])]
+    protected bool $notifyAlarm = true;
+
+    #[ORM\Column(type: 'boolean', options: ['default' => false])]
+    protected bool $notifyPush = false;
+
+    #[ORM\Column(type: 'boolean', options: ['default' => false])]
+    protected bool $notifyCalendar = false;
+
     public function __construct(
         string $id,
         string $medicationId,
@@ -152,5 +161,35 @@ abstract class ScheduleDoctrineEntity
     public function setTimezone(?string $timezone): void
     {
         $this->timezone = $timezone;
+    }
+
+    public function getNotifyAlarm(): bool
+    {
+        return $this->notifyAlarm;
+    }
+
+    public function setNotifyAlarm(bool $notifyAlarm): void
+    {
+        $this->notifyAlarm = $notifyAlarm;
+    }
+
+    public function getNotifyPush(): bool
+    {
+        return $this->notifyPush;
+    }
+
+    public function setNotifyPush(bool $notifyPush): void
+    {
+        $this->notifyPush = $notifyPush;
+    }
+
+    public function getNotifyCalendar(): bool
+    {
+        return $this->notifyCalendar;
+    }
+
+    public function setNotifyCalendar(bool $notifyCalendar): void
+    {
+        $this->notifyCalendar = $notifyCalendar;
     }
 }

@@ -111,14 +111,48 @@ final class NotificationController extends ApiController
             return $data;
         }
 
+        $doseRemindersEnabled = $this->parseNullableBool($data, 'doseRemindersEnabled');
+        if ($doseRemindersEnabled instanceof JsonResponse) {
+            return $doseRemindersEnabled;
+        }
+        $missedDoseNudgesEnabled = $this->parseNullableBool($data, 'missedDoseNudgesEnabled');
+        if ($missedDoseNudgesEnabled instanceof JsonResponse) {
+            return $missedDoseNudgesEnabled;
+        }
+        $refillAlertsEnabled = $this->parseNullableBool($data, 'refillAlertsEnabled');
+        if ($refillAlertsEnabled instanceof JsonResponse) {
+            return $refillAlertsEnabled;
+        }
+        $weeklyStreakSummariesEnabled = $this->parseNullableBool($data, 'weeklyStreakSummariesEnabled');
+        if ($weeklyStreakSummariesEnabled instanceof JsonResponse) {
+            return $weeklyStreakSummariesEnabled;
+        }
+        $inAppBannersEnabled = $this->parseNullableBool($data, 'inAppBannersEnabled');
+        if ($inAppBannersEnabled instanceof JsonResponse) {
+            return $inAppBannersEnabled;
+        }
+        $alarmRemindersEnabled = $this->parseNullableBool($data, 'alarmRemindersEnabled');
+        if ($alarmRemindersEnabled instanceof JsonResponse) {
+            return $alarmRemindersEnabled;
+        }
+
+        $reminderMinutesBefore = null;
+        if (array_key_exists('reminderMinutesBefore', $data) && $data['reminderMinutesBefore'] !== null) {
+            if (!is_int($data['reminderMinutesBefore']) || $data['reminderMinutesBefore'] < 0) {
+                return $this->respondWithFailure(Failure::validation('reminderMinutesBefore must be a non-negative integer.'));
+            }
+            $reminderMinutesBefore = $data['reminderMinutesBefore'];
+        }
+
         $command = new UpdatePreferencesCommand(
             $this->getAuthenticatedUserId()->value(),
-            array_key_exists('doseRemindersEnabled', $data) ? (bool) $data['doseRemindersEnabled'] : null,
-            array_key_exists('missedDoseNudgesEnabled', $data) ? (bool) $data['missedDoseNudgesEnabled'] : null,
-            array_key_exists('refillAlertsEnabled', $data) ? (bool) $data['refillAlertsEnabled'] : null,
-            array_key_exists('weeklyStreakSummariesEnabled', $data) ? (bool) $data['weeklyStreakSummariesEnabled'] : null,
-            array_key_exists('inAppBannersEnabled', $data) ? (bool) $data['inAppBannersEnabled'] : null,
-            array_key_exists('reminderMinutesBefore', $data) && is_numeric($data['reminderMinutesBefore']) ? (int) $data['reminderMinutesBefore'] : null
+            $doseRemindersEnabled,
+            $missedDoseNudgesEnabled,
+            $refillAlertsEnabled,
+            $weeklyStreakSummariesEnabled,
+            $inAppBannersEnabled,
+            $reminderMinutesBefore,
+            $alarmRemindersEnabled
         );
 
         $result = $this->commandBus->dispatch($command);
@@ -138,15 +172,26 @@ final class NotificationController extends ApiController
             $data = $decoded;
         }
 
-        $cancelPush = !array_key_exists('cancelPush', $data) || (bool) $data['cancelPush'];
-        $cancelCalendar = !array_key_exists('cancelCalendar', $data) || (bool) $data['cancelCalendar'];
+        $cancelPush = $this->parseOptionalBool($data, 'cancelPush', true);
+        if ($cancelPush instanceof JsonResponse) {
+            return $cancelPush;
+        }
+        $cancelCalendar = $this->parseOptionalBool($data, 'cancelCalendar', true);
+        if ($cancelCalendar instanceof JsonResponse) {
+            return $cancelCalendar;
+        }
+        $cancelAlarm = $this->parseOptionalBool($data, 'cancelAlarm', $cancelPush);
+        if ($cancelAlarm instanceof JsonResponse) {
+            return $cancelAlarm;
+        }
 
         $command = new \Notification\Application\Command\CancelNotificationCommand(
             $id,
             $this->getAuthenticatedUserId()->value(),
             $doseEventId,
             $cancelPush,
-            $cancelCalendar
+            $cancelCalendar,
+            $cancelAlarm
         );
 
         $result = $this->commandBus->dispatch($command);
@@ -168,9 +213,22 @@ final class NotificationController extends ApiController
 
         $scheduleId = is_string($data['scheduleId'] ?? null) && $data['scheduleId'] !== '' ? $data['scheduleId'] : null;
         $medicationId = is_string($data['medicationId'] ?? null) && $data['medicationId'] !== '' ? $data['medicationId'] : null;
-        $cancelPush = !array_key_exists('cancelPush', $data) || (bool) $data['cancelPush'];
-        $cancelCalendar = !array_key_exists('cancelCalendar', $data) || (bool) $data['cancelCalendar'];
-        $deleteSchedule = array_key_exists('deleteSchedule', $data) && (bool) $data['deleteSchedule'];
+        $cancelPush = $this->parseOptionalBool($data, 'cancelPush', true);
+        if ($cancelPush instanceof JsonResponse) {
+            return $cancelPush;
+        }
+        $cancelCalendar = $this->parseOptionalBool($data, 'cancelCalendar', true);
+        if ($cancelCalendar instanceof JsonResponse) {
+            return $cancelCalendar;
+        }
+        $deleteSchedule = $this->parseOptionalBool($data, 'deleteSchedule', false);
+        if ($deleteSchedule instanceof JsonResponse) {
+            return $deleteSchedule;
+        }
+        $cancelAlarm = $this->parseOptionalBool($data, 'cancelAlarm', $cancelPush);
+        if ($cancelAlarm instanceof JsonResponse) {
+            return $cancelAlarm;
+        }
 
         $command = new \Notification\Application\Command\CancelRecurringNotificationsCommand(
             $id,
@@ -179,7 +237,8 @@ final class NotificationController extends ApiController
             $medicationId,
             $cancelPush,
             $cancelCalendar,
-            $deleteSchedule
+            $deleteSchedule,
+            $cancelAlarm
         );
 
         $result = $this->commandBus->dispatch($command);
@@ -199,9 +258,22 @@ final class NotificationController extends ApiController
             $data = $decoded;
         }
 
-        $cancelPush = !array_key_exists('cancelPush', $data) || (bool) $data['cancelPush'];
-        $cancelCalendar = !array_key_exists('cancelCalendar', $data) || (bool) $data['cancelCalendar'];
-        $deleteSchedule = array_key_exists('deleteSchedule', $data) && (bool) $data['deleteSchedule'];
+        $cancelPush = $this->parseOptionalBool($data, 'cancelPush', true);
+        if ($cancelPush instanceof JsonResponse) {
+            return $cancelPush;
+        }
+        $cancelCalendar = $this->parseOptionalBool($data, 'cancelCalendar', true);
+        if ($cancelCalendar instanceof JsonResponse) {
+            return $cancelCalendar;
+        }
+        $deleteSchedule = $this->parseOptionalBool($data, 'deleteSchedule', false);
+        if ($deleteSchedule instanceof JsonResponse) {
+            return $deleteSchedule;
+        }
+        $cancelAlarm = $this->parseOptionalBool($data, 'cancelAlarm', $cancelPush);
+        if ($cancelAlarm instanceof JsonResponse) {
+            return $cancelAlarm;
+        }
 
         $command = new \Notification\Application\Command\CancelRecurringNotificationsCommand(
             $id,
@@ -210,11 +282,44 @@ final class NotificationController extends ApiController
             null,
             $cancelPush,
             $cancelCalendar,
-            $deleteSchedule
+            $deleteSchedule,
+            $cancelAlarm
         );
 
         $result = $this->commandBus->dispatch($command);
 
         return $this->respond($result);
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     */
+    private function parseNullableBool(array $data, string $field): bool|null|JsonResponse
+    {
+        if (!array_key_exists($field, $data) || $data[$field] === null) {
+            return null;
+        }
+
+        if (!is_bool($data[$field])) {
+            return $this->respondWithFailure(Failure::validation(sprintf('%s must be a boolean.', $field)));
+        }
+
+        return $data[$field];
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     */
+    private function parseOptionalBool(array $data, string $field, bool $default): bool|JsonResponse
+    {
+        if (!array_key_exists($field, $data) || $data[$field] === null) {
+            return $default;
+        }
+
+        if (!is_bool($data[$field])) {
+            return $this->respondWithFailure(Failure::validation(sprintf('%s must be a boolean.', $field)));
+        }
+
+        return $data[$field];
     }
 }

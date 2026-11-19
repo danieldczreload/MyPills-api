@@ -49,7 +49,10 @@ final class ScheduleController extends ApiController
          *     clientId?: mixed,
          *     doseAmount?: mixed,
          *     doseUnit?: mixed,
-         *     timezone?: mixed
+         *     timezone?: mixed,
+         *     notifyAlarm?: mixed,
+         *     notifyPush?: mixed,
+         *     notifyCalendar?: mixed
          * } $data */
         $data = json_decode($request->getContent(), true) ?? [];
 
@@ -87,6 +90,18 @@ final class ScheduleController extends ApiController
         $timezone = isset($data['timezone']) && is_string($data['timezone']) && $data['timezone'] !== ''
             ? $data['timezone']
             : null;
+        $notifyAlarm = $this->parseOptionalBool($data, 'notifyAlarm', true);
+        if ($notifyAlarm instanceof JsonResponse) {
+            return $notifyAlarm;
+        }
+        $notifyPush = $this->parseOptionalBool($data, 'notifyPush', false);
+        if ($notifyPush instanceof JsonResponse) {
+            return $notifyPush;
+        }
+        $notifyCalendar = $this->parseOptionalBool($data, 'notifyCalendar', false);
+        if ($notifyCalendar instanceof JsonResponse) {
+            return $notifyCalendar;
+        }
 
         $command = new CreateScheduleCommand(
             $id,
@@ -103,7 +118,10 @@ final class ScheduleController extends ApiController
             $endAt,
             $daysOfWeek,
             $clientId,
-            $timezone
+            $timezone,
+            $notifyAlarm,
+            $notifyPush,
+            $notifyCalendar
         );
 
         $result = $this->commandBus->dispatch($command);
@@ -131,5 +149,23 @@ final class ScheduleController extends ApiController
         }
 
         return '';
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     */
+    private function parseOptionalBool(array $data, string $field, bool $default): bool|JsonResponse
+    {
+        if (!array_key_exists($field, $data) || $data[$field] === null) {
+            return $default;
+        }
+
+        if (!is_bool($data[$field])) {
+            return $this->respondWithFailure(\Shared\Domain\Failure::validation(
+                sprintf('%s must be a boolean.', $field)
+            ));
+        }
+
+        return $data[$field];
     }
 }

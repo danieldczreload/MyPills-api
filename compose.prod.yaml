@@ -65,6 +65,8 @@ services:
     depends_on:
       database:
         condition: service_healthy
+      php:
+        condition: service_healthy
 
   database:
     environment:

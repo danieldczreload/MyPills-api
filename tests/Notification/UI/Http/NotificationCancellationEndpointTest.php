@@ -175,6 +175,9 @@ final class NotificationCancellationEndpointTest extends WebTestCase
                 'timesOfDay' => [['hour' => 8, 'minute' => 0]],
                 'doseAmount' => 20,
                 'doseUnit' => 'mg',
+                'notifyAlarm' => true,
+                'notifyPush' => true,
+                'notifyCalendar' => true,
             ])
         );
         self::assertSame(Response::HTTP_CREATED, $client->getResponse()->getStatusCode());
@@ -206,6 +209,7 @@ final class NotificationCancellationEndpointTest extends WebTestCase
             [],
             $headers,
             $this->encode([
+                'cancelAlarm' => true,
                 'cancelPush' => true,
                 'cancelCalendar' => true,
             ])
@@ -214,8 +218,20 @@ final class NotificationCancellationEndpointTest extends WebTestCase
         $cancelRes = $this->decodeResponse($client->getResponse()->getContent());
         self::assertSame($firstDoseId, $cancelRes['doseEventId']);
         self::assertSame('skipped', $cancelRes['status']);
+        self::assertTrue($cancelRes['alarmCancelled']);
         self::assertTrue($cancelRes['pushCancelled']);
         self::assertGreaterThanOrEqual(1, $cancelRes['calendarEventsDeleted']);
+
+        // 7b. Non-boolean cancelAlarm returns 422
+        $client->request(
+            'POST',
+            '/api/v1/profiles/' . $profileId . '/notifications/' . $firstDoseId . '/cancel',
+            [],
+            [],
+            $headers,
+            $this->encode(['cancelAlarm' => 'false'])
+        );
+        self::assertSame(Response::HTTP_UNPROCESSABLE_ENTITY, $client->getResponse()->getStatusCode());
 
         // 8. Test Cancel Individual Notification via DoseEvent alias route
         if (isset($doseList[1])) {
@@ -234,6 +250,7 @@ final class NotificationCancellationEndpointTest extends WebTestCase
         }
 
         // 9. Test Cancel Recurring Notifications via /api/v1/profiles/{id}/notifications/cancel-recurring
+        $beforeCancelIso = (new \DateTimeImmutable('-1 second'))->format(\DateTimeInterface::ATOM);
         $client->request(
             'POST',
             '/api/v1/profiles/' . $profileId . '/notifications/cancel-recurring',
@@ -242,6 +259,7 @@ final class NotificationCancellationEndpointTest extends WebTestCase
             $headers,
             $this->encode([
                 'scheduleId' => $scheduleId,
+                'cancelAlarm' => true,
                 'cancelPush' => true,
                 'cancelCalendar' => true,
             ])
@@ -250,18 +268,65 @@ final class NotificationCancellationEndpointTest extends WebTestCase
         $recurringRes = $this->decodeResponse($client->getResponse()->getContent());
         self::assertSame($profileId, $recurringRes['profileId']);
         self::assertSame($scheduleId, $recurringRes['scheduleId']);
+        self::assertTrue($recurringRes['alarmCancelled']);
         self::assertTrue($recurringRes['pushCancelled']);
 
-        // 10. Test Cancel Recurring Notifications via Schedule-specific route
+        // 9b. Verify delta sync propagates disabled channels (updatedAt bumped)
         $client->request(
-            'POST',
-            '/api/v1/profiles/' . $profileId . '/schedules/' . $scheduleId . '/cancel-recurring',
+            'GET',
+            '/api/v1/profiles/' . $profileId . '/sync?since=' . rawurlencode($beforeCancelIso),
             [],
             [],
             $headers
         );
         self::assertSame(Response::HTTP_OK, $client->getResponse()->getStatusCode());
+        $syncAfterCancel = $this->decodeResponse($client->getResponse()->getContent());
+        /** @var list<array<string, mixed>> $syncedSchedules */
+        $syncedSchedules = $syncAfterCancel['schedules'];
+        $matched = array_values(array_filter(
+            $syncedSchedules,
+            static fn (array $s): bool => ($s['id'] ?? null) === $scheduleId
+        ));
+        self::assertCount(1, $matched);
+        self::assertFalse($matched[0]['notifyAlarm']);
+        self::assertFalse($matched[0]['notifyPush']);
+        self::assertFalse($matched[0]['notifyCalendar']);
+
+        // 10. Test Cancel Recurring Notifications via Schedule-specific route with deleteSchedule=true records tombstone
+        $client->request(
+            'POST',
+            '/api/v1/profiles/' . $profileId . '/schedules/' . $scheduleId . '/cancel-recurring',
+            [],
+            [],
+            $headers,
+            $this->encode([
+                'cancelAlarm' => true,
+                'cancelPush' => false,
+                'cancelCalendar' => false,
+                'deleteSchedule' => true,
+            ])
+        );
+        self::assertSame(Response::HTTP_OK, $client->getResponse()->getStatusCode());
         $schedCancelRes = $this->decodeResponse($client->getResponse()->getContent());
         self::assertSame($scheduleId, $schedCancelRes['scheduleId']);
+        self::assertTrue($schedCancelRes['alarmCancelled']);
+        self::assertFalse($schedCancelRes['pushCancelled']);
+
+        $client->request(
+            'GET',
+            '/api/v1/profiles/' . $profileId . '/sync?since=' . rawurlencode($beforeCancelIso),
+            [],
+            [],
+            $headers
+        );
+        self::assertSame(Response::HTTP_OK, $client->getResponse()->getStatusCode());
+        $syncAfterDelete = $this->decodeResponse($client->getResponse()->getContent());
+        /** @var list<array<string, mixed>> $tombstones */
+        $tombstones = $syncAfterDelete['tombstones'];
+        $deletedScheduleTombstones = array_values(array_filter(
+            $tombstones,
+            static fn (array $t): bool => ($t['type'] ?? null) === 'schedule' && ($t['id'] ?? null) === $scheduleId
+        ));
+        self::assertCount(1, $deletedScheduleTombstones);
     }
 }

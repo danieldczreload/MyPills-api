@@ -60,8 +60,12 @@ final class CancelNotificationHandler
             return Result::failure(Failure::forbidden('Dose event does not belong to this profile.'));
         }
 
+        $cancelAlarm = $command->shouldCancelAlarm();
+        $cancelReminder = $command->cancelPush || $cancelAlarm;
         $pushCancelled = false;
-        if ($command->cancelPush) {
+        $alarmCancelled = false;
+
+        if ($cancelReminder) {
             if ($doseEvent->status() === 'pending') {
                 $doseEvent->markAs('skipped');
                 $this->doseEventRepository->save($doseEvent);
@@ -74,6 +78,8 @@ final class CancelNotificationHandler
                 'scheduleId' => $doseEvent->scheduleId()->value(),
                 'profileId' => $command->profileId,
                 'medicationId' => $medication->id()->value(),
+                'cancelAlarm' => $cancelAlarm ? '1' : '0',
+                'cancelPush' => $command->cancelPush ? '1' : '0',
             ];
 
             $title = 'Recordatorio cancelado';
@@ -92,7 +98,8 @@ final class CancelNotificationHandler
                 }
             }
 
-            $pushCancelled = true;
+            $pushCancelled = $command->cancelPush;
+            $alarmCancelled = $cancelAlarm;
         }
 
         $calendarEventsDeleted = 0;
@@ -104,6 +111,7 @@ final class CancelNotificationHandler
         return Result::success([
             'doseEventId' => $command->doseEventId,
             'status' => $doseEvent->status(),
+            'alarmCancelled' => $alarmCancelled,
             'pushCancelled' => $pushCancelled,
             'calendarEventsDeleted' => $calendarEventsDeleted,
         ]);

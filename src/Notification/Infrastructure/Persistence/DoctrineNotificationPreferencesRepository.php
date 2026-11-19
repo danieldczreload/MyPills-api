@@ -31,7 +31,8 @@ final class DoctrineNotificationPreferencesRepository implements NotificationPre
                 $preferences->createdAt(),
                 $preferences->updatedAt(),
                 $preferences->inAppBannersEnabled(),
-                $preferences->reminderMinutesBefore()
+                $preferences->reminderMinutesBefore(),
+                $preferences->alarmRemindersEnabled()
             );
             $this->entityManager->persist($entity);
         } else {
@@ -41,6 +42,7 @@ final class DoctrineNotificationPreferencesRepository implements NotificationPre
             $entity->setWeeklyStreakSummariesEnabled($preferences->weeklyStreakSummariesEnabled());
             $entity->setInAppBannersEnabled($preferences->inAppBannersEnabled());
             $entity->setReminderMinutesBefore($preferences->reminderMinutesBefore());
+            $entity->setAlarmRemindersEnabled($preferences->alarmRemindersEnabled());
             $entity->setUpdatedAt($preferences->updatedAt());
         }
 
@@ -66,7 +68,8 @@ final class DoctrineNotificationPreferencesRepository implements NotificationPre
             $entity->getCreatedAt(),
             $entity->getUpdatedAt(),
             $entity->isInAppBannersEnabled(),
-            $entity->getReminderMinutesBefore()
+            $entity->getReminderMinutesBefore(),
+            $entity->isAlarmRemindersEnabled()
         );
     }
 }
