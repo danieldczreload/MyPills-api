@@ -144,7 +144,8 @@ Los campos varían según `type`:
 
 `doseAmount` (número > 0, hasta 4 decimales) y `doseUnit` son **obligatorios**. La dosis del schedule es la que llega en el push: `"Es hora de tomar Amoxicilina (500 mg)"`.
 
-> `notifyAlarm` (default `true`), `notifyPush` (default `false`) y `notifyCalendar` (default `false`) son booleanos opcionales que controlan los canales de aviso del horario. Los despachos push del servidor solo incluyen horarios activos con `notifyPush = true` y la sincronización de calendario solo crea eventos para horarios activos con `notifyCalendar = true`. Los valores deben ser booleanos JSON estrictos (422 en caso contrario).
+> `notifyAlarm` (default `true`), `notifyPush` (default `false`) y `notifyCalendar` (default `false`) son booleanos opcionales que controlan los canales de aviso del horario.
+> Los despachos push del servidor solo incluyen horarios activos con `notifyPush = true`, la sincronización de calendario solo crea eventos con `notifyCalendar = true`, y los valores deben ser booleanos JSON estrictos (422 en caso contrario).
 
 Unidades (`GET /dose-units`): `mcg`, `mg`, `g`, `ml`, `drop`, `tsp`, `tbsp`, `iu`, `meq`, `mmol`, `tablet`, `capsule`, `puff`, `spray`, `patch`, `application`, `unit`.
 
@@ -336,7 +337,9 @@ Respuesta `200` (cancel recurring):
 
 ### Configuración de providers
 
-Google Calendar y Microsoft Graph usan clientes OAuth públicos de Android con PKCE. Configura `GOOGLE_CLIENT_ID`, `GOOGLE_CALENDAR_REDIRECT_URI`, `MICROSOFT_CLIENT_ID`, `MICROSOFT_TENANT_ID` y `MICROSOFT_CALENDAR_REDIRECT_URI`. Los client secrets son opcionales y nunca deben incluirse en la aplicación Android. Firebase Cloud Messaging usa HTTP v1 con una cuenta de servicio, no el endpoint legacy ni `FCM_SERVER_KEY`:
+Google Calendar y Microsoft Graph usan clientes OAuth públicos de Android con PKCE. Configura `GOOGLE_CLIENT_ID`, `GOOGLE_CALENDAR_REDIRECT_URI`, `MICROSOFT_CLIENT_ID`, `MICROSOFT_TENANT_ID` y `MICROSOFT_CALENDAR_REDIRECT_URI`. Los client secrets son opcionales y nunca deben incluirse en la aplicación Android.
+
+Firebase Cloud Messaging usa HTTP v1 con una cuenta de servicio, no el endpoint legacy ni `FCM_SERVER_KEY`:
 
 - `FIREBASE_PROJECT_ID`
 - `FIREBASE_CLIENT_EMAIL`

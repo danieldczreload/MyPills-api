@@ -47,11 +47,11 @@ final class DoctrineDueDoseReminderRepository implements DueDoseReminderReposito
             JOIN ' . PatientProfileDoctrineEntity::class . ' p ON m.profileId = p.id
             LEFT JOIN ' . NotificationPreferencesDoctrineEntity::class . ' np ON p.accountId = np.accountId
             WHERE d.status = :pendingStatus
-              AND d.reminderSentAt IS NULL
-              AND d.scheduledAt >= :minWindow
-              AND d.scheduledAt <= :maxWindow
-              AND s.notifyPush = true
-              AND s.cancelledAt IS NULL
+                AND d.reminderSentAt IS NULL
+                AND d.scheduledAt >= :minWindow
+                AND d.scheduledAt <= :maxWindow
+                AND s.notifyPush = true
+                AND s.cancelledAt IS NULL
             ORDER BY d.scheduledAt ASC
         ';
 
