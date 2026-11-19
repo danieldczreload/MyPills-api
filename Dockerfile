@@ -118,6 +118,7 @@ RUN <<-EOF
 	if [ -f importmap.php ]; then
 		php bin/console asset-map:compile
 	fi
+	chmod 0644 .env
 	chmod +x bin/console
 	chmod -R g=u var
 	sync
