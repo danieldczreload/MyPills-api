@@ -5,7 +5,7 @@
 # Includes worker fixes (GHSA-fq24-r53r-xcx3; not 1.13.2/1.13.3, which have
 # GHSA-5f4m-ff4w-g458), libbrotli1 upgrade for CVE-2026-111497, and must be
 # built with Go >= 1.27.3 (GO-2026-6617).
-FROM dunglas/frankenphp:1.13.4-php8.5.12@sha256:c8abcc7925f16b1431f139d0410abe8f48db3fd862bacb646b05a4413337106a AS frankenphp_upstream
+FROM dunglas/frankenphp:1.13.5-php8.5.12@sha256:667c5fffd348d9c3c260803d75956f1d9aace7e4b7331d8893de6f101d7e0e57 AS frankenphp_upstream
 
 # The different stages of this Dockerfile are meant to be built into separate images
 # https://docs.docker.com/build/building/multi-stage/#stop-at-a-specific-build-stage
